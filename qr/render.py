@@ -93,15 +93,41 @@ def make_random_homography(qr_size: int, image_size: int) -> tuple[NDArray, NDAr
     """
     assert image_size >= qr_size
 
-    H = np.array(
+    d_qr = qr_size / 2
+    d_image = image_size / 2
+
+    # Create corner points and translate those points to a zero centered system.
+    src = make_corner_points(qr_size)
+    dst = src - d_qr
+
+    # Calculate norms and scale factors for each of the points.
+    norm = np.linalg.norm(dst, axis=1).reshape(4, 1)
+    scale = np.random.uniform(0.05 * d_image, d_image, (4, 1))
+
+    # Scale the corners.
+    dst = (dst / norm) * scale
+
+    # Random rotate in Z.
+    z = np.random.uniform(0.0, 2.0 * math.pi)
+    z_rot = np.array(
         [
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [0.0, 0.0, 1.0],
+            [math.cos(z), -math.sin(z)],
+            [math.sin(z), math.cos(z)],
         ]
     )
 
-    return H, make_corner_points(qr_size)
+    dst = dst @ z_rot
+
+    # Translate back to the image system.
+    dst += d_qr
+
+    # Translate to the center of the image.
+    dst += d_image - d_qr
+
+    # Find homography.
+    H, _ = cv.findHomography(src, dst)
+
+    return H, dst
 
 
 def make_qr_mask(qr_size: int, image_size: int, H: NDArray) -> NDArray:

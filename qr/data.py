@@ -1,5 +1,7 @@
 import argparse
 import pathlib
+
+import cv2 as cv
 from matplotlib import pyplot as plt
 
 import render
@@ -7,10 +9,16 @@ import util
 
 
 def generate(options: argparse.Namespace) -> None:
-    image = render.make_random_sample()
+    while True:
+        image = render.make_random_sample()
+        image = cv.cvtColor(image, cv.COLOR_RGB2BGR)
+        cv.imshow("display", image)
+        key = cv.waitKey(0)
+        if key == 27:
+            break
 
-    plt.imshow(image)
-    plt.show()
+        cv.destroyAllWindows()
+
 
 def play(options: argparse.Namespace) -> None:
     pass
