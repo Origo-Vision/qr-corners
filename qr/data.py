@@ -4,6 +4,7 @@ import pathlib
 import cv2 as cv
 import numpy as np
 
+from qrdataset import QRDataset
 import render
 import util
 
@@ -12,13 +13,13 @@ def generate(options: argparse.Namespace) -> None:
     """
     Generate a dataset.
     """
-    images_dir = pathlib.Path(options.data_dir / "images")
+    images_dir = pathlib.Path(options.datadir / "images")
     images_dir.mkdir(parents=True, exist_ok=True)
 
-    heatmaps_dir = pathlib.Path(options.data_dir / "heatmaps")
+    heatmaps_dir = pathlib.Path(options.datadir / "heatmaps")
     heatmaps_dir.mkdir(parents=True, exist_ok=True)
 
-    points_dir = pathlib.Path(options.data_dir / "points")
+    points_dir = pathlib.Path(options.datadir / "points")
     points_dir.mkdir(parents=True, exist_ok=True)
 
     for i in range(options.samples):
@@ -36,18 +37,20 @@ def generate(options: argparse.Namespace) -> None:
 
 
 def play(options: argparse.Namespace) -> None:
-    pass
+    """
+    Display a dataset.
+    """
+    dataset = QRDataset(datadir=options.datadir)
+    for image, heatmap, points in dataset:
+        image = (image.permute(1, 2, 0).numpy() * 255.0).astype(np.uint8)
+        display = render.display_sample(image, heatmap.numpy(), points.numpy())
+        display = cv.cvtColor(display, cv.COLOR_RGB2BGR)
+        cv.imshow("play", display)
+        key = cv.waitKey(0)
+        if key == 27 or chr(key) == "q":
+            break
 
-    # while True:
-    #     image, heatmap, pts = render.make_random_sample(sigma=options.sigma)
-    #     display = render.display_sample(image, heatmap, pts)
-    #     display = cv.cvtColor(display, cv.COLOR_RGB2BGR)
-    #     cv.imshow("display", display)
-    #     key = cv.waitKey(0)
-    #     if key == 27:
-    #         break
-
-    #     cv.destroyAllWindows()
+    cv.destroyAllWindows()
 
 
 if __name__ == "__main__":
@@ -56,7 +59,7 @@ if __name__ == "__main__":
     )
     parser.add_argument("action", type=str, help="The data action (generate or play)")
     parser.add_argument(
-        "--data-dir", type=pathlib.Path, required=True, help="The data directory"
+        "--datadir", type=pathlib.Path, required=True, help="The data directory"
     )
     parser.add_argument(
         "--samples", type=int, default=100, help="The number of samples to generate"
