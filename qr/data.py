@@ -10,9 +10,10 @@ import util
 
 def generate(options: argparse.Namespace) -> None:
     while True:
-        image, _, _ = render.make_random_sample(sigma=options.sigma)
-        image = cv.cvtColor(image, cv.COLOR_RGB2BGR)
-        cv.imshow("display", image)
+        image, heatmap, pts = render.make_random_sample(sigma=options.sigma)
+        display = render.display_sample(image, heatmap, pts)
+        display = cv.cvtColor(display, cv.COLOR_RGB2BGR)
+        cv.imshow("display", display)
         key = cv.waitKey(0)
         if key == 27:
             break

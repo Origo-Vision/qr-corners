@@ -45,6 +45,45 @@ def make_random_sample(sigma: float) -> tuple[NDArray, NDArray, NDArray]:
     return image, heatmap, dst
 
 
+def display_sample(image: NDArray, heatmap: NDArray, pts: NDArray) -> NDArray:
+    """
+    Make a sample triplet displayable.
+
+    Parameters:
+        image: The image to decode.
+        heatmap: The heatmap channels.
+        pts: The corner points for the code in the image.
+
+    Returns:
+        An RGB image for display.
+    """
+    hm = heatmap_to_rgb(heatmap)
+
+    dst = make_corner_points(image.shape[0])
+    H, _ = cv.findHomography(pts, dst)
+    code = cv.warpPerspective(image, H, dsize=image.shape[:2])
+
+    return np.hstack((image, hm, code))
+
+
+def heatmap_to_rgb(heatmap: NDArray) -> NDArray:
+    """
+    Transform a heatmap to an RGB image, where UL=red, UR=green,
+    LL=blue and LR=white.
+
+    Parameters:
+        heatmap: The heatmap.
+
+    Returns:
+        The RGB image.
+    """
+    rgb = np.zeros(heatmap.shape[1:] + (3,), dtype=np.uint8)
+    for i in range(3):
+        rgb[:, :, i] = ((heatmap[i] + heatmap[3]) * 255.0).astype(np.uint8)
+
+    return rgb
+
+
 def random_string(length: int) -> str:
     """
     Utility to generate a random string of capital letters.
