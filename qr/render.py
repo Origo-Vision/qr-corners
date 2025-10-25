@@ -6,13 +6,17 @@ from numpy.typing import NDArray
 from qrcode import QRCode
 
 
-def make_random_sample() -> NDArray:
+def make_random_sample(sigma: float) -> tuple[NDArray, NDArray, NDArray]:
     """
     Generate a random sample with a QR projected on a random background.
 
+    Parameters:
+        sigma: Standard deviation for heatmap generation.
+
     Returns:
-        Numpy array RGB image.
+        Tuple with RGB image, four channel heatmap and corner points.
     """
+    # Make QR.
     qr_code = make_qr_code(random_string(10))
     assert qr_code.shape[0] == qr_code.shape[1]
 
@@ -20,18 +24,25 @@ def make_random_sample() -> NDArray:
     image_size = 256
     assert qr_size < image_size
 
-    background = make_random_background(size=image_size)
     H, dst = make_random_homography(qr_size, image_size)
 
     qr_code = cv.warpPerspective(qr_code, H, (image_size, image_size))
     qr_code = cv.cvtColor(qr_code, cv.COLOR_GRAY2RGB)
 
     qr_mask = make_qr_mask(qr_size, image_size, H)
-
     mask = qr_mask > 0
-    background[mask] = qr_code[mask]
 
-    return background
+    # Make image.
+    image = make_random_background(size=image_size)
+    image[mask] = qr_code[mask]
+
+    # Make heat maps.
+    heatmap = np.zeros((4, image_size, image_size), dtype=np.float32)
+    for i, (cx, cy) in enumerate(dst):
+        y, x = np.ogrid[:image_size, :image_size]
+        heatmap[i] = np.exp(-((x - cx) ** 2 + (y - cy) ** 2) / (2 * sigma**2))
+
+    return image, heatmap, dst
 
 
 def random_string(length: int) -> str:

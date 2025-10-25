@@ -10,7 +10,7 @@ import util
 
 def generate(options: argparse.Namespace) -> None:
     while True:
-        image = render.make_random_sample()
+        image, _, _ = render.make_random_sample(sigma=options.sigma)
         image = cv.cvtColor(image, cv.COLOR_RGB2BGR)
         cv.imshow("display", image)
         key = cv.waitKey(0)
@@ -33,6 +33,9 @@ if __name__ == "__main__":
         "--data-dir", type=pathlib.Path, default="dataset", help="The data directory"
     )
     parser.add_argument("--seed", type=int, default=1598, help="The random seed")
+    parser.add_argument(
+        "--sigma", type=float, default=3.0, help="Sigma for heatmap generation"
+    )
     options = parser.parse_args()
 
     util.set_seed(options.seed)
