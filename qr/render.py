@@ -124,6 +124,19 @@ def make_random_homography(qr_size: int, image_size: int) -> tuple[NDArray, NDAr
     # Translate to the center of the image.
     dst += d_image - d_qr
 
+    # Find the bounding box, and add a final translation.
+    min, max = bounding_box(dst)
+    min_trans_x = -min[0]
+    min_trans_y = -min[1]
+    max_trans_x = image_size - 1 - max[0]
+    max_trans_y = image_size - 1 - max[1]
+
+    trans_x = np.random.uniform(min_trans_x, max_trans_x)
+    trans_y = np.random.uniform(min_trans_y, max_trans_y)
+    trans = np.array([[trans_x, trans_y]])
+
+    dst += trans
+
     # Find homography.
     H, _ = cv.findHomography(src, dst)
 
@@ -142,3 +155,18 @@ def make_corner_points(size: int) -> NDArray:
     return np.array(
         [[0.0, 0.0], [size - 1, 0.0], [0.0, size - 1], [size - 1, size - 1]]
     )
+
+
+def bounding_box(pts: NDArray) -> tuple[NDArray, NDArray]:
+    """
+    Get the bounding box of four points.
+
+    Parameters:
+        pts: Points as an array with shape (4, 2).
+
+    Returns:
+        Tuple with arrays min of x, y and max of x, y.
+    """
+    assert pts.shape == (4, 2)
+
+    return np.min(pts, axis=0), np.max(pts, axis=0)
