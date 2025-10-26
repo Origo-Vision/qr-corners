@@ -26,12 +26,12 @@ def overfit(options: argparse.Namespace) -> None:
 
     model.train()
     for epoch in range(options.epochs):
-        Yp = model(Xb)
+        Ypred = model(Xb)
 
-        Pp = util.batch_heatmap_points(Yp)
-        accuracy = util.mean_point_accuracy(Pp, Pb)
+        Ppred = util.batch_heatmap_points(Ypred)
+        accuracy = util.mean_point_accuracy(Ppred, Pb)
 
-        loss = F.mse_loss(Yp, Yb)
+        loss = F.mse_loss(Ypred, Yb)
         #loss = F.binary_cross_entropy(Yp, Yb)
 
         optimizer.zero_grad()
