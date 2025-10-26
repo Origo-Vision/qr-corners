@@ -60,7 +60,7 @@ def batch_heatmap_points(heatmap: torch.Tensor) -> torch.Tensor:
     Returns:
         The points matrix (B, 4, 2).    
     """
-    assert len(heatmap) == 4
+    assert len(heatmap.shape) == 4
 
     points = []
     for i in range(heatmap.shape[0]):
