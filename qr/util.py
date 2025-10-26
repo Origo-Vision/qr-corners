@@ -49,3 +49,57 @@ def find_device(force_cpu: bool) -> torch.device:
         return torch.device("cuda")
     else:
         return torch.device("cpu")
+    
+def batch_heatmap_points(heatmap: torch.Tensor) -> torch.Tensor:
+    """
+    Pixel precision max location for batched heatmaps.
+
+    Parameters:
+        heatmap: The heatmap.
+
+    Returns:
+        The points matrix (B, 4, 2).    
+    """
+    assert len(heatmap) == 4
+
+    points = []
+    for i in range(heatmap.shape[0]):
+        points.append(heatmap_points(heatmap[i]).unsqueeze(0))
+
+    return torch.cat(points, 0).to(heatmap.device)
+
+def heatmap_points(heatmap: torch.Tensor) -> torch.Tensor:
+    """
+    Pixel precision max locations for the four channel heatmap.
+
+    Parameters:
+        heatmap: The heatmap.
+
+    Returns:
+        The points matrix (4, 2).
+    """
+    assert len(heatmap.shape) == 3
+    assert heatmap.shape[0] == 4
+
+    points = torch.zeros((4, 2), dtype=torch.float32).to(heatmap.device)
+    for i in range(4):
+        yx = torch.nonzero(heatmap[i] == torch.max(heatmap[i]))[0]
+        points[i] = yx.flip(0)
+
+    return points
+
+def mean_point_accuracy(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    """
+    Calculate the mean L2 accuracy between predicted points and ground truth points.
+
+    Parameters:
+        pred: The predicted points.
+        target: The ground truth points.
+
+    Returns:
+        The accuracy.
+    """
+    diff = pred - target
+    norm = torch.sum(diff**2, dim=-1)**(1/2)
+    return torch.mean(norm)
+
