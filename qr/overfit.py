@@ -2,6 +2,7 @@ import argparse
 import pathlib
 
 import torch
+import torch.nn.functional as F
 
 from models import UNet
 from qrdataset import QRDataset
@@ -13,20 +14,26 @@ def overfit(options: argparse.Namespace) -> None:
     print(f"Selected device={device}")
 
     dataset = QRDataset(datadir=options.datadir)
-    indices = torch.randint(0, len(dataset), size=(options.batch_size, ))
+    indices = torch.randint(0, len(dataset), size=(options.batch_size,))
 
-    images, heatmaps, points = dataset.multi_sample(indices)
-    print(images.shape)
+    Xb, Yb, _ = dataset.multi_sample(indices)
+    Xb = Xb.to(device)
+    Yb = Yb.to(device)
 
-    # model = UNet(in_channels=3, out_channels=4)
+    model = UNet(in_channels=3, out_channels=4).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=options.learning_rate)
 
-    # print(f"model count={util.count_parameters(model)}")
+    model.train()
+    for epoch in range(options.epochs):
+        Yp = model(Xb)
 
-    # # print(model)
+        loss = F.mse_loss(Yp, Yb)
+        
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
-    # x = torch.randn((1, 3, 256, 256))
-    # y = model(x)
-    # print(y.shape)
+        print(f"{epoch+1:5d}/{options.epochs:5d} loss={loss.item():.5f}")
 
 
 if __name__ == "__main__":
@@ -44,6 +51,9 @@ if __name__ == "__main__":
         help="The batch size for overfitting.",
     )
     parser.add_argument("--epochs", type=int, default=100, help="The number of epochs")
+    parser.add_argument(
+        "--learning-rate", type=float, default=1e-3, help="The learning rate"
+    )
     parser.add_argument(
         "--force-cpu", action="store_true", help="Force execution on the CPU"
     )
