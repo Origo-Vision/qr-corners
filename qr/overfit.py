@@ -6,16 +6,21 @@ import torch
 from models import UNet
 import util
 
+
 def overfit(options: argparse.Namespace) -> None:
-    model = UNet(in_channels=3, out_channels=4)
+    device = util.find_device(options.force_cpu)
+    print(f"Selected device={device}")
 
-    print(f"model count={util.count_parameters(model)}")
+    # model = UNet(in_channels=3, out_channels=4)
 
-    #print(model)
+    # print(f"model count={util.count_parameters(model)}")
 
-    x = torch.randn((1, 3, 256, 256))
-    y = model(x)
-    print(y.shape)
+    # # print(model)
+
+    # x = torch.randn((1, 3, 256, 256))
+    # y = model(x)
+    # print(y.shape)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -32,6 +37,9 @@ if __name__ == "__main__":
         help="The batch size for overfitting.",
     )
     parser.add_argument("--epochs", type=int, default=100, help="The number of epochs")
+    parser.add_argument(
+        "--force-cpu", action="store_true", help="Force execution on the CPU"
+    )
     parser.add_argument("--seed", type=int, default=1598, help="The random seed")
     options = parser.parse_args()
 
