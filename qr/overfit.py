@@ -4,12 +4,19 @@ import pathlib
 import torch
 
 from models import UNet
+from qrdataset import QRDataset
 import util
 
 
 def overfit(options: argparse.Namespace) -> None:
     device = util.find_device(options.force_cpu)
     print(f"Selected device={device}")
+
+    dataset = QRDataset(datadir=options.datadir)
+    indices = torch.randint(0, len(dataset), size=(options.batch_size, ))
+
+    images, heatmaps, points = dataset.multi_sample(indices)
+    print(images.shape)
 
     # model = UNet(in_channels=3, out_channels=4)
 

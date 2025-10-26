@@ -49,3 +49,17 @@ class QRDataset(Dataset):
         points = torch.tensor(points, dtype=torch.float32)
 
         return image, heatmap, points
+
+    def multi_sample(
+        self: QRDataset, indices: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        images, heatmaps, points = [], [], []
+
+        for index in indices:
+            image, heatmap, point = self[index.item()]
+
+            images.append(image.unsqueeze(0))
+            heatmaps.append(heatmap.unsqueeze(0))
+            points.append(point.unsqueeze(0))
+
+        return torch.cat(images, 0), torch.cat(heatmaps, 0), torch.cat(points, 0)
