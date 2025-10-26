@@ -1,10 +1,21 @@
 import argparse
 import pathlib
 
+import torch
+
+from models import UNet
 import util
 
 def overfit(options: argparse.Namespace) -> None:
-    pass
+    model = UNet(in_channels=3, out_channels=4)
+
+    print(f"model count={util.count_parameters(model)}")
+
+    #print(model)
+
+    x = torch.randn((1, 3, 256, 256))
+    y = model(x)
+    print(y.shape)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
