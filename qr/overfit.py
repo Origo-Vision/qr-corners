@@ -16,9 +16,10 @@ def overfit(options: argparse.Namespace) -> None:
     dataset = QRDataset(datadir=options.datadir)
     indices = torch.randint(0, len(dataset), size=(options.batch_size,))
 
-    Xb, Yb, _ = dataset.multi_sample(indices)
+    Xb, Yb, Pb = dataset.multi_sample(indices)
     Xb = Xb.to(device)
     Yb = Yb.to(device)
+    Pb = Pb.to(device)
 
     model = UNet(in_channels=3, out_channels=4).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=options.learning_rate)
@@ -28,12 +29,17 @@ def overfit(options: argparse.Namespace) -> None:
         Yp = model(Xb)
 
         loss = F.mse_loss(Yp, Yb)
-        
+
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-        print(f"{epoch+1:5d}/{options.epochs:5d} loss={loss.item():.5f}")
+        Pp = util.batch_heatmap_points(Yp)
+        accuracy = util.mean_point_accuracy(Pp, Pb)
+
+        print(
+            f"{epoch+1:5d}/{options.epochs:5d} loss={loss.item():.5f}, accuracy={accuracy.item():.2f}"
+        )
 
 
 if __name__ == "__main__":
