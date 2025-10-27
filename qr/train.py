@@ -14,6 +14,12 @@ def train(options: argparse.Namespace) -> None:
     device = util.find_device(options.force_cpu)
     print(f"Device={device}")
 
+    snapshot = False
+    if not options.modeldir is None:
+        print(f"Will store model snapshots in {options.modeldir}")
+        snapshot = True
+        options.modeldir.mkdir(parents=True, exist_ok=True)
+
     train = QRDataset(datadir=options.datadir_train)
     valid = QRDataset(datadir=options.datadir_valid)
 
@@ -28,6 +34,10 @@ def train(options: argparse.Namespace) -> None:
 
     optimizer = torch.optim.Adam(model.parameters(), lr=options.learning_rate)
     loss_fn = torch.nn.MSELoss()
+
+    # Initial thresholds for snapshot.
+    train_snapshot_accuracy = options.train_snapshot
+    valid_snapshot_accuracy = options.valid_snapshot
 
     for epoch in range(options.epochs):
         print(f"epoch {epoch+1:4d}/{options.epochs:4d}")
@@ -94,6 +104,21 @@ def train(options: argparse.Namespace) -> None:
                 f"\r  avg loss={avg_valid_loss:.5f}, avg accuracy={avg_valid_accuracy:.2f}"
             )
 
+        # Perform snapshot.
+        if snapshot and avg_train_accuracy < train_snapshot_accuracy:
+            torch.save(model.state_dict(), options.modeldir / "best_training.pth")
+            train_snapshot_accuracy = avg_train_accuracy
+            print(
+                f"==> Save model with now lowest training accuracy={train_snapshot_accuracy:.2f}"
+            )
+
+        if snapshot and avg_valid_accuracy < valid_snapshot_accuracy:
+            torch.save(model.state_dict(), options.modeldir / "best_validation.pth")
+            valid_snapshot_accuracy = avg_valid_accuracy
+            print(
+                f"==> Save model with now lowest validation accuracy={valid_snapshot_accuracy:.2f}"
+            )
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -112,6 +137,11 @@ if __name__ == "__main__":
         help="The data directory for validation",
     )
     parser.add_argument(
+        "--modeldir",
+        type=pathlib.Path,
+        help="The data directory for model snapshots",
+    )
+    parser.add_argument(
         "--batch-size",
         type=int,
         choices=[1, 2, 4, 8, 16, 32],
@@ -121,6 +151,18 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=100, help="The number of epochs")
     parser.add_argument(
         "--learning-rate", type=float, default=1e-3, help="The learning rate"
+    )
+    parser.add_argument(
+        "--train-snapshot",
+        type=float,
+        default=100.0,
+        help="Initial training threshold for snapshot",
+    )
+    parser.add_argument(
+        "--valid-snapshot",
+        type=float,
+        default=100.0,
+        help="Initial validation threshold for snapshot",
     )
     parser.add_argument(
         "--force-cpu", action="store_true", help="Force execution on the CPU"
