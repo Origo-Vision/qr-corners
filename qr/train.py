@@ -1,13 +1,30 @@
 import argparse
 import pathlib
+import time
 
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
-from models import UNet
+import models
 from qrdataset import QRDataset
 import util
+
+
+def snapshot_names(options: argparse.Namespace) -> tuple[pathlib.Path, pathlib.Path]:
+    # modeldir/mode-size-epochs-batchsize-time.pth
+    t = str(time.time()).split(".")[0]
+
+    train = (
+        options.modeldir
+        / f"train-{options.model_size}-e{options.epochs}-b{options.batch_size}-t{t}.pth"
+    )
+    valid = (
+        options.modeldir
+        / f"valid-{options.model_size}-e{options.epochs}-b{options.batch_size}-t{t}.pth"
+    )
+
+    return train, valid
 
 
 def train(options: argparse.Namespace) -> None:
@@ -15,10 +32,13 @@ def train(options: argparse.Namespace) -> None:
     print(f"Device={device}")
 
     snapshot = False
+    train_pth, valid_pth = None, None
     if not options.modeldir is None:
-        print(f"Will store model snapshots in {options.modeldir}")
         snapshot = True
         options.modeldir.mkdir(parents=True, exist_ok=True)
+        train_pth, valid_pth = snapshot_names(options)
+        print(f"Will store best training snapshots as={train_pth}")
+        print(f"Will store best validation snapshots as={valid_pth}")
 
     train = QRDataset(datadir=options.datadir_train)
     valid = QRDataset(datadir=options.datadir_valid)
@@ -29,7 +49,7 @@ def train(options: argparse.Namespace) -> None:
     train_loader = DataLoader(train, batch_size=options.batch_size, shuffle=True)
     valid_loader = DataLoader(valid, batch_size=options.batch_size)
 
-    model = UNet(in_channels=3, out_channels=4).to(device)
+    model = models.empty(options.model_size).to(device)
     print(f"Number of model parameters={util.count_parameters(model)}")
 
     optimizer = torch.optim.Adam(model.parameters(), lr=options.learning_rate)
@@ -106,14 +126,14 @@ def train(options: argparse.Namespace) -> None:
 
         # Perform snapshot.
         if snapshot and avg_train_accuracy < train_snapshot_accuracy:
-            torch.save(model.state_dict(), options.modeldir / "best_training.pth")
+            models.save(model, train_pth)
             train_snapshot_accuracy = avg_train_accuracy
             print(
                 f"==> Save model with now lowest training accuracy={train_snapshot_accuracy:.2f}"
             )
 
         if snapshot and avg_valid_accuracy < valid_snapshot_accuracy:
-            torch.save(model.state_dict(), options.modeldir / "best_validation.pth")
+            models.save(model, valid_pth)
             valid_snapshot_accuracy = avg_valid_accuracy
             print(
                 f"==> Save model with now lowest validation accuracy={valid_snapshot_accuracy:.2f}"
@@ -135,6 +155,13 @@ if __name__ == "__main__":
         type=pathlib.Path,
         required=True,
         help="The data directory for validation",
+    )
+    parser.add_argument(
+        "--model-size",
+        type=str,
+        choices=("small", "large"),
+        default="small",
+        help="The model size",
     )
     parser.add_argument(
         "--modeldir",

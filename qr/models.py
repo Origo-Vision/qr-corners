@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pathlib
+
 import torch
 from torch import nn
 
@@ -98,3 +100,73 @@ class UNet(nn.Module):
         x = self.up4(x, x1)
 
         return self.output(x)
+
+
+class SmallUNet(nn.Module):
+    def __init__(self: SmallUNet, in_channels: int, out_channels: int) -> None:
+        super().__init__()
+
+        self.input = CBR(in_channels=in_channels, out_channels=32)
+        self.down1 = Down(in_channels=32, out_channels=64)
+        self.down2 = Down(in_channels=64, out_channels=128)
+        self.down3 = Down(in_channels=128, out_channels=256)
+
+        self.up1 = Up(in_channels=256, out_channels=128)
+        self.up2 = Up(in_channels=128, out_channels=64)
+        self.up3 = Up(in_channels=64, out_channels=32)
+
+        self.output = nn.Sequential(
+            nn.Conv2d(in_channels=32, out_channels=out_channels, kernel_size=1),
+            nn.Sigmoid(),
+        )
+
+    def forward(self: SmallUNet, x: torch.Tensor) -> torch.Tensor:
+        x1 = self.input(x)
+        x2 = self.down1(x1)
+        x3 = self.down2(x2)
+        x4 = self.down3(x3)
+
+        x = self.up1(x4, x3)
+        x = self.up2(x, x2)
+        x = self.up3(x, x1)
+
+        return self.output(x)
+
+
+def empty(size: str) -> nn.Module:
+    """
+    Create an empty model with the given size.
+
+    Parameters:
+        size: The model size.
+
+    Returns:
+        The empty model.
+    """
+    if size == "small":
+        return SmallUNet(in_channels=3, out_channels=4)
+    elif size == "large":
+        return UNet(in_channels=3, out_channels=4)
+    else:
+        assert False
+
+
+def load(size: str, weights: pathlib.Path) -> nn.Module:
+    """
+    Load a model with weights.
+
+    Parameters:
+        size: The model size.
+        weights: The path to the weights.
+
+    Returns:
+        The model.
+    """
+    model = empty(size)
+    model.load_state_dict(torch.load(weights, weights_only=True))
+
+    return model
+
+def save(model: nn.Module, weights: pathlib.Path) -> None:
+    torch.save(model.state_dict(), weights)
+

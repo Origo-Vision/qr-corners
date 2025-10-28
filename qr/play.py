@@ -5,7 +5,7 @@ import time
 import cv2 as cv
 import torch
 
-from models import UNet
+import models
 import render
 import util
 
@@ -14,9 +14,7 @@ def play(options: argparse.Namespace) -> None:
     device = util.find_device(options.force_cpu)
     print(f"Device={device}")
 
-    model = UNet(in_channels=3, out_channels=4)
-    model.load_state_dict(torch.load(options.weights, weights_only=True))
-    model = model.to(device)
+    model = models.load(options.model_size, options.weights).to(device)
     model.eval()
 
     with torch.no_grad():
@@ -33,6 +31,9 @@ def play(options: argparse.Namespace) -> None:
             Ypred = Ypred.squeeze(0).cpu()
             Ppred = util.heatmap_points(Ypred).numpy()
             Ypred = Ypred.numpy()
+
+            print(f"Pb=\n{Pb}")
+            print(f"Ppred=\n{Ppred}")
 
             print(f"duration={duration*1000.0:.2f}ms")
             display = render.display_sample(rgb, Ypred, Ppred)
@@ -54,6 +55,13 @@ if __name__ == "__main__":
         type=pathlib.Path,
         required=True,
         help="The model weights used for inference",
+    )
+    parser.add_argument(
+        "--model-size",
+        type=str,
+        choices=("small", "large"),
+        default="small",
+        help="The model size",
     )
     parser.add_argument(
         "--force-cpu", action="store_true", help="Force execution on the CPU"
