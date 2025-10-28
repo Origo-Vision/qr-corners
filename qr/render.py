@@ -66,6 +66,73 @@ def display_sample(image: NDArray, heatmap: NDArray, pts: NDArray) -> NDArray:
     return np.hstack((image, hm, code))
 
 
+def display_prediction(
+    image: NDArray, heatmap: NDArray, pts_true: NDArray, pts_pred: NDArray
+) -> NDArray:
+    assert pts_true.shape == (4, 2)
+    assert pts_true.shape == pts_pred.shape
+
+    # Warped code.
+    dst = make_corner_points(image.shape[0])
+    H, _ = cv.findHomography(pts_pred, dst)
+    code = cv.warpPerspective(image, H, dsize=image.shape[:2])
+
+    # Image with true and predicted corners points.
+    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)]
+    for i in range(4):
+        pt_true = tuple(map(int, pts_true[i]))
+        pt_pred = tuple(map(int, pts_pred[i]))
+        cv.drawMarker(image, pt_true, colors[i], thickness=2)
+        cv.drawMarker(
+            image, pt_pred, colors[i], markerType=cv.MARKER_TILTED_CROSS, thickness=2
+        )
+
+    # The 2x3 mosaic.
+    h, w = image.shape[:2]
+    display = np.zeros((h * 2, w * 3, 3), np.uint8)
+
+    # Fill in the parts.
+    display[0:h, 0:w, :] = image[:, :, :]
+    display[0:h, w : w * 2, 0] = (heatmap[0, :, :] * 255.0).astype(np.uint8)
+    display[0:h, w * 2 : w * 3, 1] = (heatmap[1, :, :] * 255.0).astype(np.uint8)
+
+    display[h : h * 2, 0:w, :] = code[:, :, :]
+    display[h : h * 2, w : w * 2, 2] = (heatmap[2, :, :] * 255.0).astype(np.uint8)
+    display[h : h * 2, w * 2 : w * 3, 0] = (heatmap[3, :, :] * 255.0).astype(np.uint8)
+    display[h : h * 2, w * 2 : w * 3, 1] = (heatmap[3, :, :] * 255.0).astype(np.uint8)
+    display[h : h * 2, w * 2 : w * 3, 2] = (heatmap[3, :, :] * 255.0).astype(np.uint8)
+
+    # Draw a thin gray line to mark the shape of the warped code in the heatmaps.
+    for y in range(2):
+        for x in range(1, 3):
+            cv.line(
+                display[y * h : (y + 1) * h, x * w : (x + 1) * w, :],
+                tuple(map(int, pts_true[0])),
+                tuple(map(int, pts_true[1])),
+                (127, 127, 127),
+            )
+            cv.line(
+                display[y * h : (y + 1) * h, x * w : (x + 1) * w, :],
+                tuple(map(int, pts_true[1])),
+                tuple(map(int, pts_true[3])),
+                (127, 127, 127),
+            )
+            cv.line(
+                display[y * h : (y + 1) * h, x * w : (x + 1) * w, :],
+                tuple(map(int, pts_true[3])),
+                tuple(map(int, pts_true[2])),
+                (127, 127, 127),
+            )
+            cv.line(
+                display[y * h : (y + 1) * h, x * w : (x + 1) * w, :],
+                tuple(map(int, pts_true[2])),
+                tuple(map(int, pts_true[0])),
+                (127, 127, 127),
+            )
+
+    return display
+
+
 def heatmap_to_rgb(heatmap: NDArray) -> NDArray:
     """
     Transform a heatmap to an RGB image, where UL=red, UR=green,

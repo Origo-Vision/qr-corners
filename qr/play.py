@@ -36,9 +36,10 @@ def play(options: argparse.Namespace) -> None:
             print(f"Ppred=\n{Ppred}")
 
             print(f"duration={duration*1000.0:.2f}ms")
-            display = render.display_sample(rgb, Ypred, Ppred)
+            #display = render.display_sample(rgb, Ypred, Ppred)
+            display = render.display_prediction(rgb, Ypred, Pb, Ppred)
 
-            cv.imshow("play", display)
+            cv.imshow("play", cv.cvtColor(display, cv.COLOR_RGB2BGR))
             key = cv.waitKey(0)
             if key == 27 or chr(key) == "q":
                 break
