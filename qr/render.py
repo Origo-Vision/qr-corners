@@ -69,6 +69,18 @@ def display_sample(image: NDArray, heatmap: NDArray, pts: NDArray) -> NDArray:
 def display_prediction(
     image: NDArray, heatmap: NDArray, pts_true: NDArray, pts_pred: NDArray
 ) -> NDArray:
+    """
+    Make a prediction displayable.
+
+    Parameters:
+        image: The image to decode.
+        heatmap: The heatmap channels.
+        pts_true: The true corner points for the code in the image.
+        pts_pred: The predicted corner points for the code in the image.
+
+    Returns:
+        An RGB image for display.
+    """
     assert pts_true.shape == (4, 2)
     assert pts_true.shape == pts_pred.shape
 
