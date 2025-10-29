@@ -211,3 +211,6 @@ datasets/
 
 # Snapshots directory
 snapshots/
+
+# Run statistics directory.
+runs/

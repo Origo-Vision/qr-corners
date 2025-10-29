@@ -5,41 +5,38 @@ import time
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 
 import models
 from qrdataset import QRDataset
 import util
 
 
-def snapshot_names(options: argparse.Namespace) -> tuple[pathlib.Path, pathlib.Path]:
+def snapshot_names(
+    options: argparse.Namespace,
+) -> tuple[str, pathlib.Path, pathlib.Path]:
     # modeldir/mode-size-loss-epochs-batchsize-time.pth
     t = str(time.time()).split(".")[0]
+    run_id = f"{options.model_size}-{options.loss}-e{options.epochs}-b{options.batch_size}-t{t}"
 
-    train = (
-        options.modeldir
-        / f"train-{options.model_size}-{options.loss}-e{options.epochs}-b{options.batch_size}-t{t}.pth"
-    )
-    valid = (
-        options.modeldir
-        / f"valid-{options.model_size}-{options.loss}-e{options.epochs}-b{options.batch_size}-t{t}.pth"
-    )
+    train = options.modeldir / f"train-{run_id}.pth"
+    valid = options.modeldir / f"valid-{run_id}.pth"
 
-    return train, valid
+    return run_id, train, valid
 
 
 def train(options: argparse.Namespace) -> None:
+    # Setup device.
     device = util.find_device(options.force_cpu)
     print(f"Device={device}")
 
-    snapshot = False
-    train_pth, valid_pth = None, None
-    if not options.modeldir is None:
-        snapshot = True
-        options.modeldir.mkdir(parents=True, exist_ok=True)
-        train_pth, valid_pth = snapshot_names(options)
-        print(f"Will store best training snapshots as={train_pth}")
-        print(f"Will store best validation snapshots as={valid_pth}")
+    # Setup stuff for model snapshots.
+    options.modeldir.mkdir(parents=True, exist_ok=True)
+    run_id, train_pth, valid_pth = snapshot_names(options)
+    print(f"Will store best training snapshots as={train_pth}")
+    print(f"Will store best validation snapshots as={valid_pth}")
 
+    # Create datasets and data loaders.
     train = QRDataset(datadir=options.datadir_train)
     valid = QRDataset(datadir=options.datadir_valid)
 
@@ -49,6 +46,10 @@ def train(options: argparse.Namespace) -> None:
     train_loader = DataLoader(train, batch_size=options.batch_size, shuffle=True)
     valid_loader = DataLoader(valid, batch_size=options.batch_size)
 
+    # Setup writer.
+    writer = SummaryWriter(f"runs/{run_id}")
+
+    # Setup model, optimizer and loss.
     model = models.empty(options.model_size).to(device)
     print(f"Number of model parameters={util.count_parameters(model)}")
 
@@ -65,9 +66,11 @@ def train(options: argparse.Namespace) -> None:
     train_snapshot_accuracy = options.train_snapshot
     valid_snapshot_accuracy = options.valid_snapshot
 
+    # Main training loop.
     for epoch in range(options.epochs):
         print(f"epoch {epoch+1:4d}/{options.epochs:4d}")
 
+        # Training.
         print("Training ...")
         model.train()
 
@@ -100,6 +103,7 @@ def train(options: argparse.Namespace) -> None:
             f"\r  avg loss={avg_train_loss:.5f}, avg accuracy={avg_train_accuracy:.2f}"
         )
 
+        # Validation.
         print("Validation ...")
         model.eval()
 
@@ -130,20 +134,33 @@ def train(options: argparse.Namespace) -> None:
                 f"\r  avg loss={avg_valid_loss:.5f}, avg accuracy={avg_valid_accuracy:.2f}"
             )
 
+        # Write stats.
+        writer.add_scalar(
+            "charts/learning_rate", optimizer.param_groups[0]["lr"], epoch
+        )
+        writer.add_scalar("charts/avg_train_loss", avg_train_loss, epoch)
+        writer.add_scalar("charts/avg_valid_loss", avg_valid_loss, epoch)
+        writer.add_scalar("charts/avg_train_accuracy", avg_train_accuracy, epoch)
+        writer.add_scalar("charts/avg_valid_accuracy", avg_valid_accuracy, epoch)
+        writer.flush()
+
         # Perform snapshot.
-        if snapshot and avg_train_accuracy < train_snapshot_accuracy:
+        if avg_train_accuracy < train_snapshot_accuracy:
             models.save(model, train_pth)
             train_snapshot_accuracy = avg_train_accuracy
             print(
                 f"==> Save model with now lowest training accuracy={train_snapshot_accuracy:.2f}"
             )
 
-        if snapshot and avg_valid_accuracy < valid_snapshot_accuracy:
+        if avg_valid_accuracy < valid_snapshot_accuracy:
             models.save(model, valid_pth)
             valid_snapshot_accuracy = avg_valid_accuracy
             print(
                 f"==> Save model with now lowest validation accuracy={valid_snapshot_accuracy:.2f}"
             )
+
+    # We're done.
+    writer.close()
 
 
 if __name__ == "__main__":
@@ -179,6 +196,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--modeldir",
         type=pathlib.Path,
+        default="snapshots",
         help="The data directory for model snapshots",
     )
     parser.add_argument(
