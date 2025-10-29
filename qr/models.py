@@ -63,12 +63,12 @@ class Up(nn.Module):
         return self.cbr(x)
 
 
-class UNet(nn.Module):
+class LargeUNet(nn.Module):
     """
     Classic, full sized U-Net model.
     """
 
-    def __init__(self: UNet, in_channels: int, out_channels: int) -> None:
+    def __init__(self: LargeUNet, in_channels: int, out_channels: int) -> None:
         super().__init__()
 
         self.input = CBR(in_channels=in_channels, out_channels=64)
@@ -87,7 +87,7 @@ class UNet(nn.Module):
             nn.Sigmoid(),
         )
 
-    def forward(self: UNet, x: torch.Tensor) -> torch.Tensor:
+    def forward(self: LargeUNet, x: torch.Tensor) -> torch.Tensor:
         x1 = self.input(x)
         x2 = self.down1(x1)
         x3 = self.down2(x2)
@@ -133,6 +133,47 @@ class SmallUNet(nn.Module):
         return self.output(x)
 
 
+class TinyUNet(nn.Module):
+    def __init__(self: TinyUNet, in_channels: int, out_channels: int) -> None:
+        super().__init__()
+
+        self.input = CBR(in_channels=in_channels, out_channels=16)
+        self.down1 = Down(in_channels=16, out_channels=32)
+        self.down2 = Down(in_channels=32, out_channels=64)
+        self.down3 = Down(in_channels=64, out_channels=128)
+
+        self.up1 = Up(in_channels=128, out_channels=64)
+        self.up2 = Up(in_channels=64, out_channels=32)
+        self.up3 = Up(in_channels=32, out_channels=16)
+
+        self.output = nn.Sequential(
+            nn.Conv2d(in_channels=16, out_channels=out_channels, kernel_size=1),
+            nn.Sigmoid(),
+        )
+
+    def forward(self: TinyUNet, x: torch.Tensor) -> torch.Tensor:
+        x1 = self.input(x)
+        x2 = self.down1(x1)
+        x3 = self.down2(x2)
+        x4 = self.down3(x3)
+
+        x = self.up1(x4, x3)
+        x = self.up2(x, x2)
+        x = self.up3(x, x1)
+
+        return self.output(x)
+
+
+def kaiming_init(model: nn.Module) -> None:
+    if isinstance(model, nn.Conv2d):
+        nn.init.kaiming_normal_(model.weight, nonlinearity="relu")
+        if not model.bias is None:
+            nn.init.constant_(model.bias, 0.0)
+    elif isinstance(model, nn.BatchNorm2d):
+        nn.init.constant_(model.weight, 1.0)
+        nn.init.constant_(model.weight, 0.0)
+
+
 def empty(size: str) -> nn.Module:
     """
     Create an empty model with the given size.
@@ -143,12 +184,19 @@ def empty(size: str) -> nn.Module:
     Returns:
         The empty model.
     """
-    if size == "small":
-        return SmallUNet(in_channels=3, out_channels=4)
+    model = None
+    if size == "tiny":
+        model = TinyUNet(in_channels=3, out_channels=4)
+    elif size == "small":
+        model = SmallUNet(in_channels=3, out_channels=4)
     elif size == "large":
-        return UNet(in_channels=3, out_channels=4)
+        model = LargeUNet(in_channels=3, out_channels=4)
     else:
         assert False
+
+    model.apply(kaiming_init)
+
+    return model
 
 
 def load(size: str, weights: pathlib.Path) -> nn.Module:
@@ -167,6 +215,13 @@ def load(size: str, weights: pathlib.Path) -> nn.Module:
 
     return model
 
-def save(model: nn.Module, weights: pathlib.Path) -> None:
-    torch.save(model.state_dict(), weights)
 
+def save(model: nn.Module, weights: pathlib.Path) -> None:
+    """
+    Save the model's weights.
+
+    Parameters:
+        model: The model.
+        weights: The path to the weights.
+    """
+    torch.save(model.state_dict(), weights)

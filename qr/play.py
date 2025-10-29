@@ -60,7 +60,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model-size",
         type=str,
-        choices=("small", "large"),
+        choices=("tiny", "small", "large"),
         default="small",
         help="The model size",
     )

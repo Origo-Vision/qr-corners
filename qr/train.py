@@ -165,7 +165,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model-size",
         type=str,
-        choices=("small", "large"),
+        choices=("tiny", "small", "large"),
         default="small",
         help="The model size",
     )
@@ -173,7 +173,7 @@ if __name__ == "__main__":
         "--loss",
         type=str,
         choices=("mse", "bce"),
-        default="mse",
+        default="bce",
         help="The loss function",
     )
     parser.add_argument(
@@ -185,7 +185,7 @@ if __name__ == "__main__":
         "--batch-size",
         type=int,
         choices=[1, 2, 4, 8, 16, 32],
-        default=16,
+        default=4,
         help="The batch size",
     )
     parser.add_argument("--epochs", type=int, default=100, help="The number of epochs")
