@@ -12,16 +12,16 @@ import util
 
 
 def snapshot_names(options: argparse.Namespace) -> tuple[pathlib.Path, pathlib.Path]:
-    # modeldir/mode-size-epochs-batchsize-time.pth
+    # modeldir/mode-size-loss-epochs-batchsize-time.pth
     t = str(time.time()).split(".")[0]
 
     train = (
         options.modeldir
-        / f"train-{options.model_size}-e{options.epochs}-b{options.batch_size}-t{t}.pth"
+        / f"train-{options.model_size}-{options.loss}-e{options.epochs}-b{options.batch_size}-t{t}.pth"
     )
     valid = (
         options.modeldir
-        / f"valid-{options.model_size}-e{options.epochs}-b{options.batch_size}-t{t}.pth"
+        / f"valid-{options.model_size}-{options.loss}-e{options.epochs}-b{options.batch_size}-t{t}.pth"
     )
 
     return train, valid
@@ -53,7 +53,13 @@ def train(options: argparse.Namespace) -> None:
     print(f"Number of model parameters={util.count_parameters(model)}")
 
     optimizer = torch.optim.Adam(model.parameters(), lr=options.learning_rate)
-    loss_fn = torch.nn.MSELoss()
+    loss_fn = None
+    if options.loss == "mse":
+        loss_fn = torch.nn.MSELoss()
+    elif options.loss == "bce":
+        loss_fn = torch.nn.BCELoss()
+    else:
+        loss_fn = torch.nn.MSELoss()
 
     # Initial thresholds for snapshot.
     train_snapshot_accuracy = options.train_snapshot
@@ -162,6 +168,13 @@ if __name__ == "__main__":
         choices=("small", "large"),
         default="small",
         help="The model size",
+    )
+    parser.add_argument(
+        "--loss",
+        type=str,
+        choices=("mse", "bce"),
+        default="mse",
+        help="The loss function",
     )
     parser.add_argument(
         "--modeldir",
