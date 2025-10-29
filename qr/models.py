@@ -171,7 +171,7 @@ def kaiming_init(model: nn.Module) -> None:
             nn.init.constant_(model.bias, 0.0)
     elif isinstance(model, nn.BatchNorm2d):
         nn.init.constant_(model.weight, 1.0)
-        nn.init.constant_(model.weight, 0.0)
+        nn.init.constant_(model.bias, 0.0)
 
 
 def empty(size: str) -> nn.Module:
