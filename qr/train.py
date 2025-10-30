@@ -183,7 +183,7 @@ if __name__ == "__main__":
         "--model-size",
         type=str,
         choices=("tiny", "small", "large"),
-        default="small",
+        default="tiny",
         help="The model size",
     )
     parser.add_argument(
