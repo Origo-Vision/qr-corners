@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 import models
+from scheduler import Scheduler
 from qrdataset import QRDataset
 import util
 
@@ -17,7 +18,7 @@ def snapshot_names(
 ) -> tuple[str, pathlib.Path, pathlib.Path]:
     # modeldir/mode-size-loss-epochs-batchsize-time.pth
     t = str(time.time()).split(".")[0]
-    run_id = f"{options.model_size}-{options.loss}-e{options.epochs}-b{options.batch_size}-t{t}"
+    run_id = f"{options.model_size}-{options.loss}-{options.scheduler}-e{options.epochs}-b{options.batch_size}-t{t}"
 
     train = options.modeldir / f"train-{run_id}.pth"
     valid = options.modeldir / f"valid-{run_id}.pth"
@@ -53,7 +54,10 @@ def train(options: argparse.Namespace) -> None:
     model = models.empty(options.model_size).to(device)
     print(f"Number of model parameters={util.count_parameters(model)}")
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=options.learning_rate)
+    scheduler = Scheduler(
+        lr=options.learning_rate, annealing=options.scheduler, epochs=options.epochs
+    )
+    optimizer = torch.optim.Adam(model.parameters(), lr=scheduler.learning_rate())
     loss_fn = None
     if options.loss == "mse":
         loss_fn = torch.nn.MSELoss()
@@ -159,6 +163,10 @@ def train(options: argparse.Namespace) -> None:
                 f"==> Save model with now lowest validation accuracy={valid_snapshot_accuracy:.2f}"
             )
 
+        # Step the scheduler, and update the optimizer's learning rate.
+        scheduler.step()
+        optimizer.param_groups[0]["lr"] = scheduler.learning_rate()
+
     # We're done.
     writer.close()
 
@@ -192,6 +200,13 @@ if __name__ == "__main__":
         choices=("mse", "bce"),
         default="bce",
         help="The loss function",
+    )
+    parser.add_argument(
+        "--scheduler",
+        type=str,
+        choices=("cosine", "linear", "none"),
+        default="cosine",
+        help="The scheduling function",
     )
     parser.add_argument(
         "--modeldir",
