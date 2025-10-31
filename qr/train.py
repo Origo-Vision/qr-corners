@@ -57,7 +57,9 @@ def train(options: argparse.Namespace) -> None:
     scheduler = Scheduler(
         lr=options.learning_rate, annealing=options.scheduler, epochs=options.epochs
     )
-    optimizer = torch.optim.Adam(model.parameters(), lr=scheduler.learning_rate())
+    optimizer = torch.optim.AdamW(
+        model.parameters(), lr=scheduler.learning_rate(), weight_decay=1e-5
+    )
     loss_fn = None
     if options.loss == "mse":
         loss_fn = torch.nn.MSELoss()
