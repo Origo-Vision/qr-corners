@@ -7,11 +7,16 @@ import cv2 as cv
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+from torchvision.transforms import Compose
 
 
 class QRDataset(Dataset):
-    def __init__(self: QRDataset, datadir: pathlib.Path) -> None:
+    def __init__(
+        self: QRDataset, datadir: pathlib.Path, augmentations: Compose = Compose([])
+    ) -> None:
         super().__init__()
+
+        self.augmentations = augmentations
 
         images_dir = datadir / "images"
         self.images = list(
@@ -48,7 +53,7 @@ class QRDataset(Dataset):
         points = np.load(self.points[index])
         points = torch.tensor(points, dtype=torch.float32)
 
-        return image, heatmap, points
+        return self.augmentations(image), heatmap, points
 
     def multi_sample(
         self: QRDataset, indices: torch.Tensor

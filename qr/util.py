@@ -3,6 +3,7 @@ import random
 import numpy as np
 import torch
 from torch import nn
+from torchvision.transforms import Compose, v2
 
 
 def set_seed(seed: int) -> None:
@@ -49,7 +50,22 @@ def find_device(force_cpu: bool) -> torch.device:
         return torch.device("cuda")
     else:
         return torch.device("cpu")
-    
+
+
+def augmentations() -> Compose:
+    """
+    Create augmentation for the training data.
+    """
+    return Compose(
+        [
+            v2.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.1, hue=0.3),
+            v2.GaussianBlur(kernel_size=3, sigma=(0.1, 2)),
+            v2.GaussianNoise(),
+            v2.RandomPosterize(bits=6),
+        ]
+    )
+
+
 def batch_heatmap_points(heatmap: torch.Tensor) -> torch.Tensor:
     """
     Pixel precision max location for batched heatmaps.
@@ -58,7 +74,7 @@ def batch_heatmap_points(heatmap: torch.Tensor) -> torch.Tensor:
         heatmap: The heatmap.
 
     Returns:
-        The points matrix (B, 4, 2).    
+        The points matrix (B, 4, 2).
     """
     assert len(heatmap.shape) == 4
 
@@ -67,6 +83,7 @@ def batch_heatmap_points(heatmap: torch.Tensor) -> torch.Tensor:
         points.append(heatmap_points(heatmap[i]).unsqueeze(0))
 
     return torch.cat(points, 0).to(heatmap.device)
+
 
 def heatmap_points(heatmap: torch.Tensor) -> torch.Tensor:
     """
@@ -88,6 +105,7 @@ def heatmap_points(heatmap: torch.Tensor) -> torch.Tensor:
 
     return points
 
+
 def mean_point_accuracy(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
     """
     Calculate the mean L2 accuracy between predicted points and ground truth points.
@@ -100,6 +118,5 @@ def mean_point_accuracy(pred: torch.Tensor, target: torch.Tensor) -> torch.Tenso
         The accuracy.
     """
     diff = pred - target
-    norm = torch.sum(diff**2, dim=-1)**(1/2)
+    norm = torch.sum(diff**2, dim=-1) ** (1 / 2)
     return torch.mean(norm)
-

@@ -3,6 +3,7 @@ import pathlib
 
 import cv2 as cv
 import numpy as np
+from torchvision.transforms import Compose
 
 from qrdataset import QRDataset
 import render
@@ -40,7 +41,10 @@ def play(options: argparse.Namespace) -> None:
     """
     Display a dataset.
     """
-    dataset = QRDataset(datadir=options.datadir)
+    dataset = QRDataset(
+        datadir=options.datadir,
+        augmentations=util.augmentations() if options.augment else Compose([]),
+    )
     for image, heatmap, points in dataset:
         image = (image.permute(1, 2, 0).numpy() * 255.0).astype(np.uint8)
         display = render.display_sample(image, heatmap.numpy(), points.numpy())
@@ -67,6 +71,9 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=1598, help="The random seed")
     parser.add_argument(
         "--sigma", type=float, default=3.0, help="Sigma for heatmap generation"
+    )
+    parser.add_argument(
+        "--augment", action="store_true", help="Apply augmentations in play"
     )
     options = parser.parse_args()
 

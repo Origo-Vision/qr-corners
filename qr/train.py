@@ -38,7 +38,7 @@ def train(options: argparse.Namespace) -> None:
     print(f"Will store best validation snapshots as={valid_pth}")
 
     # Create datasets and data loaders.
-    train = QRDataset(datadir=options.datadir_train)
+    train = QRDataset(datadir=options.datadir_train, augmentations=util.augmentations())
     valid = QRDataset(datadir=options.datadir_valid)
 
     print(f"Images in the training dataset={len(train)}")
