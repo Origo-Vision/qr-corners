@@ -15,7 +15,7 @@ def play(options: argparse.Namespace) -> None:
     device = util.find_device(options.force_cpu)
     print(f"Device={device}")
 
-    model = models.load(options.model_size, options.weights).to(device)
+    model = models.load(options.weights).to(device)
     model.eval()
 
     augmentations = None
@@ -63,13 +63,6 @@ if __name__ == "__main__":
         type=pathlib.Path,
         required=True,
         help="The model weights used for inference",
-    )
-    parser.add_argument(
-        "--model-size",
-        type=str,
-        choices=("tiny", "small", "large"),
-        default="tiny",
-        help="The model size",
     )
     parser.add_argument(
         "--force-cpu", action="store_true", help="Force execution on the CPU"

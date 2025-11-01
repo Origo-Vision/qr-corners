@@ -16,9 +16,9 @@ import util
 def snapshot_names(
     options: argparse.Namespace,
 ) -> tuple[str, pathlib.Path, pathlib.Path]:
-    # modeldir/mode-size-loss-epochs-batchsize-time.pth
+    # modeldir/mode-loss-epochs-batchsize-time.pth
     t = str(time.time()).split(".")[0]
-    run_id = f"{options.model_size}-{options.loss}-{options.scheduler}-e{options.epochs}-b{options.batch_size}-t{t}"
+    run_id = f"{options.loss}-{options.scheduler}-e{options.epochs}-b{options.batch_size}-t{t}"
 
     train = options.modeldir / f"train-{run_id}.pth"
     valid = options.modeldir / f"valid-{run_id}.pth"
@@ -51,7 +51,7 @@ def train(options: argparse.Namespace) -> None:
     writer = SummaryWriter(f"runs/{run_id}")
 
     # Setup model, optimizer and loss.
-    model = models.empty(options.model_size).to(device)
+    model = models.empty().to(device)
     print(f"Number of model parameters={util.count_parameters(model)}")
 
     scheduler = Scheduler(
@@ -188,13 +188,6 @@ if __name__ == "__main__":
         type=pathlib.Path,
         required=True,
         help="The data directory for validation",
-    )
-    parser.add_argument(
-        "--model-size",
-        type=str,
-        choices=("tiny", "small", "large"),
-        default="tiny",
-        help="The model size",
     )
     parser.add_argument(
         "--loss",

@@ -98,78 +98,8 @@ class Up(nn.Module):
         return self.cbr(x)
 
 
-class LargeUNet(nn.Module):
-    """
-    Classic, full sized U-Net model.
-    """
-
-    def __init__(self: LargeUNet, in_channels: int, out_channels: int) -> None:
-        super().__init__()
-
-        self.input = CBR(in_channels=in_channels, out_channels=64)
-        self.down1 = Down(in_channels=64, out_channels=128)
-        self.down2 = Down(in_channels=128, out_channels=256)
-        self.down3 = Down(in_channels=256, out_channels=512)
-        self.down4 = Down(in_channels=512, out_channels=1024)
-
-        self.up1 = Up(in_channels=1024, out_channels=512)
-        self.up2 = Up(in_channels=512, out_channels=256)
-        self.up3 = Up(in_channels=256, out_channels=128)
-        self.up4 = Up(in_channels=128, out_channels=64)
-
-        self.output = nn.Sequential(
-            nn.Conv2d(in_channels=64, out_channels=out_channels, kernel_size=1),
-            nn.Sigmoid(),
-        )
-
-    def forward(self: LargeUNet, x: torch.Tensor) -> torch.Tensor:
-        x1 = self.input(x)
-        x2 = self.down1(x1)
-        x3 = self.down2(x2)
-        x4 = self.down3(x3)
-        x5 = self.down4(x4)
-
-        x = self.up1(x5, x4)
-        x = self.up2(x, x3)
-        x = self.up3(x, x2)
-        x = self.up4(x, x1)
-
-        return self.output(x)
-
-
-class SmallUNet(nn.Module):
-    def __init__(self: SmallUNet, in_channels: int, out_channels: int) -> None:
-        super().__init__()
-
-        self.input = CBR(in_channels=in_channels, out_channels=32)
-        self.down1 = Down(in_channels=32, out_channels=64)
-        self.down2 = Down(in_channels=64, out_channels=128)
-        self.down3 = Down(in_channels=128, out_channels=256)
-
-        self.up1 = Up(in_channels=256, out_channels=128)
-        self.up2 = Up(in_channels=128, out_channels=64)
-        self.up3 = Up(in_channels=64, out_channels=32)
-
-        self.output = nn.Sequential(
-            nn.Conv2d(in_channels=32, out_channels=out_channels, kernel_size=1),
-            nn.Sigmoid(),
-        )
-
-    def forward(self: SmallUNet, x: torch.Tensor) -> torch.Tensor:
-        x1 = self.input(x)
-        x2 = self.down1(x1)
-        x3 = self.down2(x2)
-        x4 = self.down3(x3)
-
-        x = self.up1(x4, x3)
-        x = self.up2(x, x2)
-        x = self.up3(x, x1)
-
-        return self.output(x)
-
-
-class TinyUNet(nn.Module):
-    def __init__(self: TinyUNet, in_channels: int, out_channels: int) -> None:
+class AsppUNet(nn.Module):
+    def __init__(self: AsppUNet, in_channels: int, out_channels: int) -> None:
         super().__init__()
 
         self.input = CBR(in_channels=in_channels, out_channels=16)
@@ -188,7 +118,7 @@ class TinyUNet(nn.Module):
             nn.Sigmoid(),
         )
 
-    def forward(self: TinyUNet, x: torch.Tensor) -> torch.Tensor:
+    def forward(self: AsppUNet, x: torch.Tensor) -> torch.Tensor:
         x1 = self.input(x)
         x2 = self.down1(x1)
         x3 = self.down2(x2)
@@ -213,49 +143,36 @@ def kaiming_init(model: nn.Module) -> None:
         nn.init.constant_(model.bias, 0.0)
 
 
-def empty(size: str) -> nn.Module:
+def empty() -> AsppUNet:
     """
-    Create an empty model with the given size.
-
-    Parameters:
-        size: The model size.
+    Create an empty model.
 
     Returns:
         The empty model.
     """
-    model = None
-    if size == "tiny":
-        model = TinyUNet(in_channels=3, out_channels=4)
-    elif size == "small":
-        model = SmallUNet(in_channels=3, out_channels=4)
-    elif size == "large":
-        model = LargeUNet(in_channels=3, out_channels=4)
-    else:
-        assert False
-
+    model = AsppUNet(in_channels=3, out_channels=4)
     model.apply(kaiming_init)
 
     return model
 
 
-def load(size: str, weights: pathlib.Path) -> nn.Module:
+def load(weights: pathlib.Path) -> AsppUNet:
     """
     Load a model with weights.
 
     Parameters:
-        size: The model size.
         weights: The path to the weights.
 
     Returns:
         The model.
     """
-    model = empty(size)
+    model = empty()
     model.load_state_dict(torch.load(weights, weights_only=True))
 
     return model
 
 
-def save(model: nn.Module, weights: pathlib.Path) -> None:
+def save(model: AsppUNet, weights: pathlib.Path) -> None:
     """
     Save the model's weights.
 
