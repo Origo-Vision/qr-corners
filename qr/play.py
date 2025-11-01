@@ -3,6 +3,7 @@ import pathlib
 import time
 
 import cv2 as cv
+import numpy as np
 import torch
 
 import models
@@ -17,12 +18,18 @@ def play(options: argparse.Namespace) -> None:
     model = models.load(options.model_size, options.weights).to(device)
     model.eval()
 
+    augmentations = None
+    if options.augment:
+        augmentations = util.augmentations()
+
     with torch.no_grad():
         while True:
             rgb, Yb, Pb = render.make_random_sample(3.0)
 
             Xb = torch.tensor(rgb.transpose(2, 0, 1), dtype=torch.float32) / 255.0
             Xb = Xb.unsqueeze(0).to(device)
+            if not augmentations is None:
+                Xb = augmentations(Xb)
 
             start = time.time()
             Ypred = model(Xb)
@@ -36,7 +43,7 @@ def play(options: argparse.Namespace) -> None:
             print(f"Ppred=\n{Ppred}")
 
             print(f"duration={duration*1000.0:.2f}ms")
-            #display = render.display_sample(rgb, Ypred, Ppred)
+            rgb = (Xb.cpu().squeeze(0).permute(1, 2, 0).numpy() * 255.0).astype(np.uint8).copy()
             display = render.display_prediction(rgb, Ypred, Pb, Ppred)
 
             cv.imshow("play", cv.cvtColor(display, cv.COLOR_RGB2BGR))
@@ -68,6 +75,9 @@ if __name__ == "__main__":
         "--force-cpu", action="store_true", help="Force execution on the CPU"
     )
     parser.add_argument("--seed", type=int, default=1598, help="The random seed")
+    parser.add_argument(
+        "--augment", action="store_true", help="Apply augmentations in play"
+    )
     options = parser.parse_args()
 
     util.set_seed(options.seed)

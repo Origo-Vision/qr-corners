@@ -58,9 +58,9 @@ def augmentations() -> Compose:
     """
     return Compose(
         [
-            v2.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.1, hue=0.3),
+            v2.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.1, hue=0.0),
             v2.GaussianBlur(kernel_size=3, sigma=(0.1, 2)),
-            v2.GaussianNoise(),
+            v2.GaussianNoise(sigma=0.03),
             v2.RandomPosterize(bits=6),
         ]
     )

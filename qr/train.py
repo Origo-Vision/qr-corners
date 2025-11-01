@@ -39,7 +39,7 @@ def train(options: argparse.Namespace) -> None:
 
     # Create datasets and data loaders.
     train = QRDataset(datadir=options.datadir_train, augmentations=util.augmentations())
-    valid = QRDataset(datadir=options.datadir_valid)
+    valid = QRDataset(datadir=options.datadir_valid, augmentations=util.augmentations())
 
     print(f"Images in the training dataset={len(train)}")
     print(f"Images in the validation dataset={len(valid)}")
