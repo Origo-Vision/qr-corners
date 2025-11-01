@@ -48,6 +48,41 @@ class Down(nn.Module):
         return self.down(x)
 
 
+class ASPP(nn.Module):
+    def __init__(self: ASPP, num_channels: int, dilations: list[int]) -> None:
+        super().__init__()
+
+        self.blocks = nn.ModuleList(
+            [
+                nn.Conv2d(
+                    in_channels=num_channels,
+                    out_channels=num_channels,
+                    kernel_size=3,
+                    padding=d,
+                    dilation=d,
+                    bias=False,
+                )
+                for d in dilations
+            ]
+        )
+
+        self.conv = nn.Conv2d(
+            in_channels=num_channels * len(dilations),
+            out_channels=num_channels,
+            kernel_size=1,
+            bias=False,
+        )
+        self.bn = nn.BatchNorm2d(num_features=num_channels)
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self: ASPP, x: torch.Tensor) -> torch.Tensor:
+        features = [conv(x) for conv in self.blocks]
+        x = torch.cat(features, dim=1)
+        x = self.conv(x)
+        x = self.bn(x)
+        return self.relu(x)
+
+
 class Up(nn.Module):
     def __init__(self: Up, in_channels: int, out_channels) -> None:
         super().__init__()
@@ -142,6 +177,8 @@ class TinyUNet(nn.Module):
         self.down2 = Down(in_channels=32, out_channels=64)
         self.down3 = Down(in_channels=64, out_channels=128)
 
+        self.aspp = ASPP(num_channels=128, dilations=[1, 2, 4, 8])
+
         self.up1 = Up(in_channels=128, out_channels=64)
         self.up2 = Up(in_channels=64, out_channels=32)
         self.up3 = Up(in_channels=32, out_channels=16)
@@ -156,6 +193,8 @@ class TinyUNet(nn.Module):
         x2 = self.down1(x1)
         x3 = self.down2(x2)
         x4 = self.down3(x3)
+
+        x4 = self.aspp(x4)
 
         x = self.up1(x4, x3)
         x = self.up2(x, x2)
