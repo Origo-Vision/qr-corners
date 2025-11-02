@@ -103,8 +103,42 @@ def heatmap_points(heatmap: torch.Tensor) -> torch.Tensor:
         yx = torch.nonzero(heatmap[i] == torch.max(heatmap[i]))[0]
         points[i] = yx.flip(0)
 
-    return points
+    return subpixel_points(heatmap, points)
 
+def subpixel_points(heatmap: torch.Tensor, points: torch.Tensor) -> torch.Tensor:
+    """
+    Subpixel precision max locations for the four channel heatmap.
+
+    Parameters:
+        heatmap: The heatmap.
+        points: The discrete max locations.
+
+    Returns:
+        The points matrix (4, 2).
+    """
+    assert len(heatmap.shape) == 3
+    assert heatmap.shape[0] == 4
+    assert points.shape == (4, 2)
+
+    h, w = heatmap.shape[1:]
+    eps = 1e-6
+    for i in range(4):
+        x, y = map(np.int64, points[i])
+
+        if x > 0 and y > 0 and x < w - 1 and y < h - 1:
+            mid = heatmap[i, y, x] + eps
+            left = heatmap[i, y, x - 1]
+            right = heatmap[i, y, x + 1]
+            up = heatmap[i, y - 1, x]
+            down = heatmap[i, y + 1, x]
+
+            x_offset = (right / mid - left / mid) / 2.
+            y_offset = (down / mid - up / mid) / 2.
+            
+            points[i, 0] += x_offset
+            points[i, 1] += y_offset
+
+    return points
 
 def mean_point_accuracy(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
     """
