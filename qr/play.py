@@ -22,6 +22,7 @@ def play(options: argparse.Namespace) -> None:
     if options.augment:
         augmentations = util.augmentations()
 
+    cv.namedWindow("play")
     with torch.no_grad():
         while True:
             rgb, Yb, Pb = render.make_random_sample(3.0)
@@ -36,17 +37,27 @@ def play(options: argparse.Namespace) -> None:
             duration = time.time() - start
 
             Ypred = Ypred.squeeze(0).cpu()
-            Ppred = util.heatmap_points(Ypred).numpy()
+            Ppred = util.heatmap_points(Ypred)
             Ypred = Ypred.numpy()
+
+            accuracy = util.mean_point_accuracy(Ppred, torch.tensor(Pb)).item()
 
             print(f"Pb=\n{Pb}")
             print(f"Ppred=\n{Ppred}")
 
-            print(f"duration={duration*1000.0:.2f}ms")
-            rgb = (Xb.cpu().squeeze(0).permute(1, 2, 0).numpy() * 255.0).astype(np.uint8).copy()
-            display = render.display_prediction(rgb, Ypred, Pb, Ppred)
+            rgb = (
+                (Xb.cpu().squeeze(0).permute(1, 2, 0).numpy() * 255.0)
+                .astype(np.uint8)
+                .copy()
+            )
+            display = render.display_prediction(rgb, Ypred, Pb, Ppred.numpy())
 
             cv.imshow("play", cv.cvtColor(display, cv.COLOR_RGB2BGR))
+            cv.setWindowTitle(
+                "play",
+                f"Inference time={duration*1000.0:.2f}ms, Avg accuracy={accuracy:.1f}px",
+            )
+
             key = cv.waitKey(0)
             if key == 27 or chr(key) == "q":
                 break
