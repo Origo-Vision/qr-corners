@@ -123,7 +123,7 @@ def subpixel_points(heatmap: torch.Tensor, points: torch.Tensor) -> torch.Tensor
     h, w = heatmap.shape[1:]
     eps = 1e-6
     for i in range(4):
-        x, y = map(np.int64, points[i])
+        x, y = map(int, points[i])
 
         if x > 0 and y > 0 and x < w - 1 and y < h - 1:
             mid = heatmap[i, y, x] + eps
