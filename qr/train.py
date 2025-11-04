@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
+from loss import DiceLoss, MixedLoss
 import models
 from scheduler import Scheduler
 from qrdataset import QRDataset
@@ -65,6 +66,8 @@ def train(options: argparse.Namespace) -> None:
         loss_fn = torch.nn.MSELoss()
     elif options.loss == "bce":
         loss_fn = torch.nn.BCELoss()
+    elif options.loss == "bceloss":
+        loss_fn = MixedLoss(left=torch.nn.BCELoss(), right=DiceLoss())
     else:
         loss_fn = torch.nn.MSELoss()
 
@@ -192,7 +195,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--loss",
         type=str,
-        choices=("mse", "bce"),
+        choices=("mse", "bce", "bcedice"),
         default="bce",
         help="The loss function",
     )
