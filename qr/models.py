@@ -167,7 +167,7 @@ def load(weights: pathlib.Path) -> AsppUNet:
         The model.
     """
     model = empty()
-    model.load_state_dict(torch.load(weights, weights_only=True))
+    model.load_state_dict(torch.load(weights, map_location="cpu", weights_only=True))
 
     return model
 
