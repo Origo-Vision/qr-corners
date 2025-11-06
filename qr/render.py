@@ -61,7 +61,7 @@ def display_sample(image: NDArray, heatmap: NDArray, pts: NDArray) -> NDArray:
 
     dst = make_corner_points(image.shape[0])
     H, _ = cv.findHomography(pts, dst)
-    code = cv.warpPerspective(image, H, dsize=image.shape[:2])
+    code = warpCode(image, H)
 
     return np.hstack((image, hm, code))
 
@@ -87,7 +87,7 @@ def display_prediction(
     # Warped code.
     dst = make_corner_points(image.shape[0])
     H, _ = cv.findHomography(pts_pred, dst)
-    code = cv.warpPerspective(image, H, dsize=image.shape[:2])
+    code = warpCode(image, H)
 
     # Image with true and predicted corners points.
     colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)]
@@ -299,3 +299,23 @@ def bounding_box(pts: NDArray) -> tuple[NDArray, NDArray]:
     assert pts.shape == (4, 2)
 
     return np.min(pts, axis=0), np.max(pts, axis=0)
+
+def warpCode(image: NDArray, H: NDArray) -> NDArray:
+    """
+    Warp and binarize a detected code.
+
+    Parameters:
+        image: Input RGB image.
+        H: Homography.
+
+    Returns:
+        The warped code.
+    """
+    assert len(image.shape) == 3
+    assert image.shape[2] == 3
+    assert H.shape == (3, 3)
+
+    gray = cv.cvtColor(image, cv.COLOR_RGB2GRAY)
+    gray = cv.warpPerspective(gray, H, dsize=image.shape[:2])
+    cv.threshold(gray, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU, dst=gray)
+    return cv.cvtColor(gray, cv.COLOR_GRAY2RGB)
