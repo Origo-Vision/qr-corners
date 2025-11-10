@@ -25,15 +25,14 @@ def group_loss(x: torch.Tensor) -> torch.Tensor:
 
 
 def main() -> None:
-    params = torch.arange(0.0, 1.0, step=0.05, requires_grad=True).reshape(5, 4)
-    params.retain_grad()
+    params = torch.rand(5, 4, requires_grad=True)
 
-    print(f"initial parameters=\n{params}")
+    print(f"initial parameters=\n{F.sigmoid(params)}")
 
-    epochs = 75
-    lr = 1.0
+    epochs = 3000
+    lr = 1
     for epoch in range(epochs):
-        loss = group_loss(params)
+        loss = group_loss(F.sigmoid(params))
 
         params.grad = None
         loss.backward()
@@ -41,7 +40,7 @@ def main() -> None:
 
         print(f"Epoch={epoch+1:3d}/{epochs:3d}. Loss={loss.item():.8f}")
 
-    print(f"final parameters=\n{params}")
+    print(f"final parameters=\n{F.sigmoid(params)}")
 
 
 if __name__ == "__main__":
