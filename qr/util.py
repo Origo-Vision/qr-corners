@@ -1,6 +1,7 @@
 import random
 
 import numpy as np
+from numpy.typing import ArrayLike, NDArray
 import torch
 from torch import nn
 from torchvision.transforms import Compose, v2
@@ -105,6 +106,7 @@ def heatmap_points(heatmap: torch.Tensor) -> torch.Tensor:
 
     return subpixel_points(heatmap, points)
 
+
 def subpixel_points(heatmap: torch.Tensor, points: torch.Tensor) -> torch.Tensor:
     """
     Subpixel precision max locations for the four channel heatmap.
@@ -132,13 +134,14 @@ def subpixel_points(heatmap: torch.Tensor, points: torch.Tensor) -> torch.Tensor
             up = heatmap[i, y - 1, x]
             down = heatmap[i, y + 1, x]
 
-            x_offset = (right / mid - left / mid) / 2.
-            y_offset = (down / mid - up / mid) / 2.
-            
+            x_offset = (right / mid - left / mid) / 2.0
+            y_offset = (down / mid - up / mid) / 2.0
+
             points[i, 0] += x_offset
             points[i, 1] += y_offset
 
     return points
+
 
 def mean_point_accuracy(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
     """
@@ -154,3 +157,23 @@ def mean_point_accuracy(pred: torch.Tensor, target: torch.Tensor) -> torch.Tenso
     diff = pred - target
     norm = torch.sum(diff**2, dim=-1) ** (1 / 2)
     return torch.mean(norm)
+
+
+def transform_point(H: NDArray, point: ArrayLike) -> NDArray:
+    """
+    Transform a 2D point using a homography.
+
+    Parameters:
+        H: Homograpy.
+        point: Point with x and y coordinates.
+
+    Returns:
+        The transformed point.
+    """
+    assert H.shape == (3, 3)
+    assert len(point) == 2
+
+    x, y = point
+    point = H @ [x, y, 1.0]
+
+    return point[:2] / point[2]

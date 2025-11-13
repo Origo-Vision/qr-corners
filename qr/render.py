@@ -5,6 +5,8 @@ import numpy as np
 from numpy.typing import NDArray
 from qrcode import QRCode
 
+import util
+
 
 def make_random_sample(sigma: float) -> tuple[NDArray, NDArray, NDArray]:
     """
@@ -14,7 +16,7 @@ def make_random_sample(sigma: float) -> tuple[NDArray, NDArray, NDArray]:
         sigma: Standard deviation for heatmap generation.
 
     Returns:
-        Tuple with RGB image, four channel heatmap and corner points.
+        Tuple with RGB image, five channel heatmap and points for the corners and center.
     """
     # Make QR.
     qr_code = make_qr_code(random_string(10))
@@ -24,7 +26,12 @@ def make_random_sample(sigma: float) -> tuple[NDArray, NDArray, NDArray]:
     image_size = 256
     assert qr_size < image_size
 
-    H, dst = make_random_homography(qr_size, image_size)
+    H, dst_points = make_random_homography(qr_size, image_size)
+
+    center = (qr_size - 1) / 2
+    center_point = util.transform_point(H, [center, center])
+    dst_points = np.append(dst_points, np.atleast_2d(center_point), axis=0)
+    assert dst_points.shape[0] == 5
 
     qr_code = cv.warpPerspective(qr_code, H, (image_size, image_size))
     qr_code = cv.cvtColor(qr_code, cv.COLOR_GRAY2RGB)
@@ -36,13 +43,13 @@ def make_random_sample(sigma: float) -> tuple[NDArray, NDArray, NDArray]:
     image = make_random_background(size=image_size)
     image[mask] = qr_code[mask]
 
-    # Make heat maps.
-    heatmap = np.zeros((4, image_size, image_size), dtype=np.float32)
-    for i, (cx, cy) in enumerate(dst):
+    # Make heat maps (UL, UR, LL, LR, center).
+    heatmap = np.zeros((dst_points.shape[0], image_size, image_size), dtype=np.float32)
+    for i, (cx, cy) in enumerate(dst_points):
         y, x = np.ogrid[:image_size, :image_size]
         heatmap[i] = np.exp(-((x - cx) ** 2 + (y - cy) ** 2) / (2 * sigma**2))
 
-    return image, heatmap, dst
+    return image, heatmap, dst_points
 
 
 def display_sample(image: NDArray, heatmap: NDArray, pts: NDArray) -> NDArray:
@@ -52,7 +59,7 @@ def display_sample(image: NDArray, heatmap: NDArray, pts: NDArray) -> NDArray:
     Parameters:
         image: The image to decode.
         heatmap: The heatmap channels.
-        pts: The corner points for the code in the image.
+        pts: The corner and center points for the code in the image.
 
     Returns:
         An RGB image for display.
@@ -60,7 +67,7 @@ def display_sample(image: NDArray, heatmap: NDArray, pts: NDArray) -> NDArray:
     hm = heatmap_to_rgb(heatmap)
 
     dst = make_corner_points(image.shape[0])
-    H, _ = cv.findHomography(pts, dst)
+    H, _ = cv.findHomography(pts[:4], dst)
     code = warpCode(image, H)
 
     return np.hstack((image, hm, code))
@@ -148,7 +155,7 @@ def display_prediction(
 def heatmap_to_rgb(heatmap: NDArray) -> NDArray:
     """
     Transform a heatmap to an RGB image, where UL=red, UR=green,
-    LL=blue and LR=white.
+    LL=blue, LR=white and center=yellow.
 
     Parameters:
         heatmap: The heatmap.
@@ -157,8 +164,12 @@ def heatmap_to_rgb(heatmap: NDArray) -> NDArray:
         The RGB image.
     """
     rgb = np.zeros(heatmap.shape[1:] + (3,), dtype=np.uint8)
+
     for i in range(3):
-        rgb[:, :, i] = ((heatmap[i] + heatmap[3]) * 255.0).astype(np.uint8)
+        colors = (
+            heatmap[i] + heatmap[3] + heatmap[4] if i < 2 else heatmap[i] + heatmap[3]
+        )
+        rgb[:, :, i] = (np.clip(colors, 0.0, 1.0) * 255.0).astype(np.uint8)
 
     return rgb
 
@@ -299,6 +310,7 @@ def bounding_box(pts: NDArray) -> tuple[NDArray, NDArray]:
     assert pts.shape == (4, 2)
 
     return np.min(pts, axis=0), np.max(pts, axis=0)
+
 
 def warpCode(image: NDArray, H: NDArray) -> NDArray:
     """
