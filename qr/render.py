@@ -88,12 +88,12 @@ def display_prediction(
     Returns:
         An RGB image for display.
     """
-    assert pts_true.shape == (4, 2)
+    assert pts_true.shape == (5, 2)
     assert pts_true.shape == pts_pred.shape
 
     # Warped code.
     dst = make_corner_points(image.shape[0])
-    H, _ = cv.findHomography(pts_pred, dst)
+    H, _ = cv.findHomography(pts_pred[:4], dst)
     code = warpCode(image, H)
 
     # Image with true and predicted corners points.
