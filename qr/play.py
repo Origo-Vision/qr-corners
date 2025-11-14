@@ -66,7 +66,13 @@ def play(options: argparse.Namespace, center_error_threshold: float = 5.0) -> No
                 .astype(np.uint8)
                 .copy()
             )
-            display = render.display_prediction(rgb, Ypred, Ptrue, Ppred.numpy())
+            display = render.display_prediction(
+                rgb,
+                Ypred,
+                Ptrue,
+                Ppred.numpy(),
+                center.numpy() if not center is None else None,
+            )
 
             cv.imshow("play", cv.cvtColor(display, cv.COLOR_RGB2BGR))
             cv.setWindowTitle(
