@@ -67,6 +67,38 @@ def augmentations() -> Compose:
     )
 
 
+def check_predicted_points(points: torch.Tensor) -> tuple[torch.Tensor, float] | None:
+    assert points.shape == (5, 2)
+
+    def hline(pt1: torch.Tensor, pt2: torch.Tensor) -> torch.Tensor:
+        x1, y1 = pt1
+        x2, y2 = pt2
+
+        a = y1 - y2
+        b = x2 - x1
+        c = x1 * y2 - x2 * y1
+
+        return torch.tensor([a, b, c])
+
+    def hcross(l1: torch.Tensor, l2: torch.Tensor) -> torch.Tensor | None:
+        x, y, w = torch.linalg.cross(l1, l2)
+
+        return torch.tensor([x / w, y / w]) if w > 1e-5 else None
+
+    # LR UL
+    l1 = hline(points[3], points[0])
+
+    # LL UR
+    l2 = hline(points[2], points[1])
+
+    center = hcross(l1, l2)
+    if not center is None:
+        return center, torch.linalg.norm(points[4] - center).item()
+    else:
+        # Parallel lines happened.
+        return None
+
+
 def batch_heatmap_points(heatmap: torch.Tensor) -> torch.Tensor:
     """
     Pixel precision max location for batched heatmaps.
