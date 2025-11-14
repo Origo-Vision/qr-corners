@@ -97,8 +97,8 @@ def display_prediction(
     code = warpCode(image, H)
 
     # Image with true and predicted corners points.
-    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255)]
-    for i in range(4):
+    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255), (255, 255, 0)]
+    for i in range(5):
         pt_true = tuple(map(int, pts_true[i]))
         pt_pred = tuple(map(int, pts_pred[i]))
         cv.drawMarker(image, pt_true, colors[i], thickness=2)
