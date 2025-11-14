@@ -75,7 +75,7 @@ def batch_heatmap_points(heatmap: torch.Tensor) -> torch.Tensor:
         heatmap: The heatmap.
 
     Returns:
-        The points matrix (B, 4, 2).
+        The points matrix (B, 5, 2).
     """
     assert len(heatmap.shape) == 4
 
@@ -88,19 +88,19 @@ def batch_heatmap_points(heatmap: torch.Tensor) -> torch.Tensor:
 
 def heatmap_points(heatmap: torch.Tensor) -> torch.Tensor:
     """
-    Pixel precision max locations for the four channel heatmap.
+    Pixel precision max locations for the five channel heatmap.
 
     Parameters:
         heatmap: The heatmap.
 
     Returns:
-        The points matrix (4, 2).
+        The points matrix (5, 2).
     """
     assert len(heatmap.shape) == 3
-    assert heatmap.shape[0] == 4
+    assert heatmap.shape[0] == 5
 
-    points = torch.zeros((4, 2), dtype=torch.float32).to(heatmap.device)
-    for i in range(4):
+    points = torch.zeros((5, 2), dtype=torch.float32).to(heatmap.device)
+    for i in range(5):
         yx = torch.nonzero(heatmap[i] == torch.max(heatmap[i]))[0]
         points[i] = yx.flip(0)
 
@@ -109,22 +109,22 @@ def heatmap_points(heatmap: torch.Tensor) -> torch.Tensor:
 
 def subpixel_points(heatmap: torch.Tensor, points: torch.Tensor) -> torch.Tensor:
     """
-    Subpixel precision max locations for the four channel heatmap.
+    Subpixel precision max locations for the five channel heatmap.
 
     Parameters:
         heatmap: The heatmap.
         points: The discrete max locations.
 
     Returns:
-        The points matrix (4, 2).
+        The points matrix (5, 2).
     """
     assert len(heatmap.shape) == 3
-    assert heatmap.shape[0] == 4
-    assert points.shape == (4, 2)
+    assert heatmap.shape[0] == 5
+    assert points.shape == (5, 2)
 
     h, w = heatmap.shape[1:]
     eps = 1e-6
-    for i in range(4):
+    for i in range(5):
         x, y = map(int, points[i])
 
         if x > 0 and y > 0 and x < w - 1 and y < h - 1:

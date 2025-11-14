@@ -150,7 +150,7 @@ def empty() -> AsppUNet:
     Returns:
         The empty model.
     """
-    model = AsppUNet(in_channels=3, out_channels=4)
+    model = AsppUNet(in_channels=3, out_channels=5)
     model.apply(kaiming_init)
 
     return model
