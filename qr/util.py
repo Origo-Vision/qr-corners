@@ -1,6 +1,7 @@
 import random
 
 import numpy as np
+from numpy.typing import ArrayLike, NDArray
 import torch
 from torch import nn
 from torchvision.transforms import Compose, v2
@@ -66,6 +67,38 @@ def augmentations() -> Compose:
     )
 
 
+def check_predicted_points(points: torch.Tensor) -> tuple[torch.Tensor, float] | None:
+    assert points.shape == (5, 2)
+
+    def hline(pt1: torch.Tensor, pt2: torch.Tensor) -> torch.Tensor:
+        x1, y1 = pt1
+        x2, y2 = pt2
+
+        a = y1 - y2
+        b = x2 - x1
+        c = x1 * y2 - x2 * y1
+
+        return torch.tensor([a, b, c])
+
+    def hcross(l1: torch.Tensor, l2: torch.Tensor) -> torch.Tensor | None:
+        x, y, w = torch.linalg.cross(l1, l2)
+
+        return torch.tensor([x / w, y / w]) if w > 1e-5 else None
+
+    # LR UL
+    l1 = hline(points[3], points[0])
+
+    # LL UR
+    l2 = hline(points[2], points[1])
+
+    center = hcross(l1, l2)
+    if not center is None:
+        return center, torch.linalg.norm(points[4] - center).item()
+    else:
+        # Parallel lines happened.
+        return None
+
+
 def batch_heatmap_points(heatmap: torch.Tensor) -> torch.Tensor:
     """
     Pixel precision max location for batched heatmaps.
@@ -74,7 +107,7 @@ def batch_heatmap_points(heatmap: torch.Tensor) -> torch.Tensor:
         heatmap: The heatmap.
 
     Returns:
-        The points matrix (B, 4, 2).
+        The points matrix (B, 5, 2).
     """
     assert len(heatmap.shape) == 4
 
@@ -87,42 +120,43 @@ def batch_heatmap_points(heatmap: torch.Tensor) -> torch.Tensor:
 
 def heatmap_points(heatmap: torch.Tensor) -> torch.Tensor:
     """
-    Pixel precision max locations for the four channel heatmap.
+    Pixel precision max locations for the five channel heatmap.
 
     Parameters:
         heatmap: The heatmap.
 
     Returns:
-        The points matrix (4, 2).
+        The points matrix (5, 2).
     """
     assert len(heatmap.shape) == 3
-    assert heatmap.shape[0] == 4
+    assert heatmap.shape[0] == 5
 
-    points = torch.zeros((4, 2), dtype=torch.float32).to(heatmap.device)
-    for i in range(4):
+    points = torch.zeros((5, 2), dtype=torch.float32).to(heatmap.device)
+    for i in range(5):
         yx = torch.nonzero(heatmap[i] == torch.max(heatmap[i]))[0]
         points[i] = yx.flip(0)
 
     return subpixel_points(heatmap, points)
 
+
 def subpixel_points(heatmap: torch.Tensor, points: torch.Tensor) -> torch.Tensor:
     """
-    Subpixel precision max locations for the four channel heatmap.
+    Subpixel precision max locations for the five channel heatmap.
 
     Parameters:
         heatmap: The heatmap.
         points: The discrete max locations.
 
     Returns:
-        The points matrix (4, 2).
+        The points matrix (5, 2).
     """
     assert len(heatmap.shape) == 3
-    assert heatmap.shape[0] == 4
-    assert points.shape == (4, 2)
+    assert heatmap.shape[0] == 5
+    assert points.shape == (5, 2)
 
     h, w = heatmap.shape[1:]
     eps = 1e-6
-    for i in range(4):
+    for i in range(5):
         x, y = map(int, points[i])
 
         if x > 0 and y > 0 and x < w - 1 and y < h - 1:
@@ -132,13 +166,14 @@ def subpixel_points(heatmap: torch.Tensor, points: torch.Tensor) -> torch.Tensor
             up = heatmap[i, y - 1, x]
             down = heatmap[i, y + 1, x]
 
-            x_offset = (right / mid - left / mid) / 2.
-            y_offset = (down / mid - up / mid) / 2.
-            
+            x_offset = (right / mid - left / mid) / 2.0
+            y_offset = (down / mid - up / mid) / 2.0
+
             points[i, 0] += x_offset
             points[i, 1] += y_offset
 
     return points
+
 
 def mean_point_accuracy(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
     """
@@ -154,3 +189,23 @@ def mean_point_accuracy(pred: torch.Tensor, target: torch.Tensor) -> torch.Tenso
     diff = pred - target
     norm = torch.sum(diff**2, dim=-1) ** (1 / 2)
     return torch.mean(norm)
+
+
+def transform_point(H: NDArray, point: ArrayLike) -> NDArray:
+    """
+    Transform a 2D point using a homography.
+
+    Parameters:
+        H: Homograpy.
+        point: Point with x and y coordinates.
+
+    Returns:
+        The transformed point.
+    """
+    assert H.shape == (3, 3)
+    assert len(point) == 2
+
+    x, y = point
+    point = H @ [x, y, 1.0]
+
+    return point[:2] / point[2]

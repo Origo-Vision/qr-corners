@@ -11,7 +11,7 @@ import render
 import util
 
 
-def play(options: argparse.Namespace) -> None:
+def play(options: argparse.Namespace, center_error_threshold: float = 5.0) -> None:
     device = util.find_device(options.force_cpu)
     print(f"Device={device}")
 
@@ -22,10 +22,15 @@ def play(options: argparse.Namespace) -> None:
     if options.augment:
         augmentations = util.augmentations()
 
+    total_samples = 0
+    ok_samples = 0
+
     cv.namedWindow("play")
     with torch.no_grad():
         while True:
-            rgb, Yb, Pb = render.make_random_sample(3.0)
+            total_samples += 1
+
+            rgb, _, Ptrue = render.make_random_sample(3.0)
 
             Xb = torch.tensor(rgb.transpose(2, 0, 1), dtype=torch.float32) / 255.0
             Xb = Xb.unsqueeze(0).to(device)
@@ -40,9 +45,20 @@ def play(options: argparse.Namespace) -> None:
             Ppred = util.heatmap_points(Ypred)
             Ypred = Ypred.numpy()
 
-            accuracy = util.mean_point_accuracy(Ppred, torch.tensor(Pb)).item()
+            accuracy = util.mean_point_accuracy(Ppred, torch.tensor(Ptrue)).item()
 
-            print(f"Pb=\n{Pb}")
+            center, center_error = None, None
+            center_accuracy = util.check_predicted_points(Ppred)
+            if not center_accuracy is None:
+                center, center_error = center_accuracy
+                print(f"center error={center_error:.2f}px")
+
+                if center_error < center_error_threshold:
+                    ok_samples += 1
+                else:
+                    center = None
+
+            print(f"Ptrue=\n{Ptrue}")
             print(f"Ppred=\n{Ppred}")
 
             rgb = (
@@ -50,12 +66,18 @@ def play(options: argparse.Namespace) -> None:
                 .astype(np.uint8)
                 .copy()
             )
-            display = render.display_prediction(rgb, Ypred, Pb, Ppred.numpy())
+            display = render.display_prediction(
+                rgb,
+                Ypred,
+                Ptrue,
+                Ppred.numpy(),
+                center.numpy() if not center is None else None,
+            )
 
             cv.imshow("play", cv.cvtColor(display, cv.COLOR_RGB2BGR))
             cv.setWindowTitle(
                 "play",
-                f"Inference time={duration*1000.0:.2f}ms, Avg accuracy={accuracy:.1f}px",
+                f"Inference time={duration*1000.0:.2f}ms, point accuracy={accuracy:.1f}px, score={ok_samples / total_samples * 100:.1f}%",
             )
 
             key = cv.waitKey(0)
