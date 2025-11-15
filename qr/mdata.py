@@ -3,7 +3,9 @@ import pathlib
 
 import cv2 as cv
 import numpy as np
+from torchvision.transforms import Compose
 
+from qrdataset import QRDataset
 import render
 import util
 
@@ -38,7 +40,23 @@ def generate(options: argparse.Namespace) -> None:
         np.save(points_path, points)
 
 def play(options: argparse.Namespace) -> None:
-    pass
+    """
+    Display a dataset.
+    """
+    dataset = QRDataset(
+        datadir=options.datadir,
+        augmentations=util.augmentations() if options.augment else Compose([]),
+    )
+    for image, heatmap, points in dataset:
+        image = (image.permute(1, 2, 0).numpy() * 255.0).astype(np.uint8)
+        display = render.display_multisample(image, heatmap.numpy(), points.numpy())
+        display = cv.cvtColor(display, cv.COLOR_RGB2BGR)
+        cv.imshow("play", display)
+        key = cv.waitKey(0)
+        if key == 27 or chr(key) == "q":
+            break
+
+    cv.destroyAllWindows()
 
 
 if __name__ == "__main__":

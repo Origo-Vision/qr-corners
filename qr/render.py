@@ -114,21 +114,23 @@ def make_random_multisample(sigma: float) -> tuple[NDArray, NDArray, NDArray]:
 
         for i, (cx, cy) in enumerate(dst_points):
             y, x = np.ogrid[:image_size, :image_size]
-            heatmap[i] = np.exp(-((x - cx) ** 2 + (y - cy) ** 2) / (2 * sigma**2))
+            heatmap[i] += np.exp(-((x - cx) ** 2 + (y - cy) ** 2) / (2 * sigma**2))
 
         points.append(dst_points)
 
-    return image, heatmap, np.array(points)
+    points = np.array(points)
+
+    return image, heatmap, points
 
 
-def display_sample(image: NDArray, heatmap: NDArray, pts: NDArray) -> NDArray:
+def display_sample(image: NDArray, heatmap: NDArray, points: NDArray) -> NDArray:
     """
     Make a sample triplet displayable.
 
     Parameters:
         image: The image to decode.
         heatmap: The heatmap channels.
-        pts: The corner and center points for the code in the image.
+        points: The corner and center points for the code in the image.
 
     Returns:
         An RGB image for display.
@@ -136,10 +138,80 @@ def display_sample(image: NDArray, heatmap: NDArray, pts: NDArray) -> NDArray:
     hm = heatmap_to_rgb(heatmap)
 
     dst = make_corner_points(image.shape[0])
-    H, _ = cv.findHomography(pts[:4], dst)
+    H, _ = cv.findHomography(points[:4], dst)
     code = warpCode(image, H)
 
     return np.hstack((image, hm, code))
+
+
+def display_multisample(image: NDArray, heatmap: NDArray, points: NDArray) -> NDArray:
+    """
+    Make a multi sample displayable.
+
+    Parameters:
+        image: The image to decode.
+        heatmap: The heatmap channels.
+        points: The corner and center points for the code in the image.
+
+    Returns:
+        An RGB image for display.
+    """
+    hm = heatmap_to_rgb(heatmap)
+
+    gray = np.ones_like(image) * 128
+    ul = gray
+    ur = gray
+    ll = gray
+    lr = gray
+
+    image_size = image.shape[0]
+    dst = make_corner_points(image_size)
+
+    quad_size = image_size >> 1
+    for point in points:
+        # Estimate quadrant.
+        minx, miny = np.min(point[:4], axis=0)
+        maxx, maxy = np.max(point[:4], axis=0)
+
+        H, _ = cv.findHomography(point[:4], dst)
+        code = warpCode(image, H)
+
+        if (
+            minx < quad_size
+            and maxx < quad_size
+            and miny < quad_size
+            and maxy < quad_size
+        ):
+            ul = code
+        elif (
+            minx >= quad_size
+            and maxx >= quad_size
+            and miny < quad_size
+            and maxy < quad_size
+        ):
+            ur = code
+        elif (
+            minx < quad_size
+            and maxx < quad_size
+            and miny >= quad_size
+            and maxy >= quad_size
+        ):
+            ll = code
+        elif (
+            minx >= quad_size
+            and maxx >= quad_size
+            and miny >= quad_size
+            and maxy >= quad_size
+        ):
+            lr = code
+        else:
+            ul = code
+
+    row1 = np.hstack((image, hm))
+    row2 = np.hstack((ul, ur))
+    row3 = np.hstack((ll, lr))
+
+    return np.vstack((row1, row2, row3))
 
 
 def display_prediction(
