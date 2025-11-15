@@ -97,7 +97,9 @@ def make_random_multisample(sigma: float) -> tuple[NDArray, NDArray, NDArray]:
             offset[0] += quad_size
             offset[1] += quad_size
 
-        H, dst_points = make_random_homography(qr_size, quad_size, offset=offset)
+        H, dst_points = make_random_homography(
+            qr_size, quad_size, min_scale=0.3, offset=offset
+        )
 
         center = (qr_size - 1) / 2
         center_point = util.transform_point(H, [center, center])
@@ -373,7 +375,10 @@ def make_random_background(size: int) -> NDArray:
 
 
 def make_random_homography(
-    qr_size: int, image_size: int, offset: NDArray = np.array([0.0, 0.0])
+    qr_size: int,
+    image_size: int,
+    min_scale: float = 0.05,
+    offset: NDArray = np.array([0.0, 0.0]),
 ) -> tuple[NDArray, NDArray]:
     """
     Make a random homography to transform the QR within the boundaries of the target image.
@@ -381,6 +386,7 @@ def make_random_homography(
     Parameters:
         qr_size: Size of the QR code.
         image_size: Size of the image.
+        min_scale: The minimum scale from origin while creating homograpy.
         offset: Vector to transform to a specific quadrant.
 
     Returns:
@@ -397,7 +403,7 @@ def make_random_homography(
 
     # Calculate norms and scale factors for each of the points.
     norm = np.linalg.norm(dst, axis=1).reshape(4, 1)
-    scale = np.random.uniform(0.05 * d_image, d_image, (4, 1))
+    scale = np.random.uniform(min_scale * d_image, d_image, (4, 1))
 
     # Scale the corners.
     dst = (dst / norm) * scale
