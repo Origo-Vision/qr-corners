@@ -10,7 +10,7 @@ import util
 
 def make_random_sample(sigma: float) -> tuple[NDArray, NDArray, NDArray]:
     """
-    Generate a random sample with a QR projected on a random background.
+    Generate a random sample with a QR code projected on a random background.
 
     Parameters:
         sigma: Standard deviation for heatmap generation.
@@ -52,14 +52,87 @@ def make_random_sample(sigma: float) -> tuple[NDArray, NDArray, NDArray]:
     return image, heatmap, dst_points
 
 
-def display_sample(image: NDArray, heatmap: NDArray, pts: NDArray) -> NDArray:
+def make_random_multisample(sigma: float) -> tuple[NDArray, NDArray, NDArray]:
+    """
+    Generate a random multi sample with one or several QR codes projected on a random background.
+
+    Parameters:
+        sigma: Standard deviation for heatmap generation.
+
+    Returns:
+        Tuple with RGB image, five channel heatmap and points for the corners and center.
+    """
+    count, layout = multicode_layout()
+
+    # If the count is zero, the sample is more or less equal to the single sample.
+    if count == 0:
+        rgb, heatmap, points = make_random_sample(sigma=sigma)
+        return rgb, heatmap, np.atleast_3d(points).transpose(2, 0, 1)
+
+    # Make background image.
+    image_size = 256
+    image = make_random_background(size=image_size)
+
+    # Make black heatmap.
+    heatmap = np.zeros((5, image_size, image_size), dtype=np.float32)
+
+    # Make points collection.
+    points = []
+
+    # Iterate each quadrant.
+    quad_size = image_size >> 1
+    for quad in layout:
+        qr_code = make_qr_code(random_string(10))
+        assert qr_code.shape[0] == qr_code.shape[1]
+
+        qr_size = qr_code.shape[0]
+        assert qr_size < quad_size
+
+        offset = np.array([0.0, 0.0])
+        if quad == 1:
+            offset[0] += quad_size
+        elif quad == 2:
+            offset[1] += quad_size
+        elif quad == 3:
+            offset[0] += quad_size
+            offset[1] += quad_size
+
+        H, dst_points = make_random_homography(
+            qr_size, quad_size, min_scale=0.3, offset=offset
+        )
+
+        center = (qr_size - 1) / 2
+        center_point = util.transform_point(H, [center, center])
+        dst_points = np.append(dst_points, np.atleast_2d(center_point), axis=0)
+        assert dst_points.shape[0] == 5
+
+        qr_code = cv.warpPerspective(qr_code, H, (image_size, image_size))
+        qr_code = cv.cvtColor(qr_code, cv.COLOR_GRAY2RGB)
+
+        qr_mask = make_qr_mask(qr_size, image_size, H)
+        mask = qr_mask > 0
+
+        image[mask] = qr_code[mask]
+
+        for i, (cx, cy) in enumerate(dst_points):
+            y, x = np.ogrid[:image_size, :image_size]
+            heatmap[i] += np.exp(-((x - cx) ** 2 + (y - cy) ** 2) / (2 * sigma**2))
+
+        points.append(dst_points)
+
+    points = np.array(points)
+
+    return image, heatmap, points
+
+
+def display_sample(image: NDArray, heatmap: NDArray, points: NDArray) -> NDArray:
     """
     Make a sample triplet displayable.
 
     Parameters:
         image: The image to decode.
         heatmap: The heatmap channels.
-        pts: The corner and center points for the code in the image.
+        points: The corner and center points for the code in the image.
 
     Returns:
         An RGB image for display.
@@ -67,10 +140,80 @@ def display_sample(image: NDArray, heatmap: NDArray, pts: NDArray) -> NDArray:
     hm = heatmap_to_rgb(heatmap)
 
     dst = make_corner_points(image.shape[0])
-    H, _ = cv.findHomography(pts[:4], dst)
+    H, _ = cv.findHomography(points[:4], dst)
     code = warpCode(image, H)
 
     return np.hstack((image, hm, code))
+
+
+def display_multisample(image: NDArray, heatmap: NDArray, points: NDArray) -> NDArray:
+    """
+    Make a multi sample displayable.
+
+    Parameters:
+        image: The image to decode.
+        heatmap: The heatmap channels.
+        points: The corner and center points for the code in the image.
+
+    Returns:
+        An RGB image for display.
+    """
+    hm = heatmap_to_rgb(heatmap)
+
+    gray = np.ones_like(image) * 128
+    ul = gray
+    ur = gray
+    ll = gray
+    lr = gray
+
+    image_size = image.shape[0]
+    dst = make_corner_points(image_size)
+
+    quad_size = image_size >> 1
+    for point in points:
+        # Estimate quadrant.
+        minx, miny = np.min(point[:4], axis=0)
+        maxx, maxy = np.max(point[:4], axis=0)
+
+        H, _ = cv.findHomography(point[:4], dst)
+        code = warpCode(image, H)
+
+        if (
+            minx < quad_size
+            and maxx < quad_size
+            and miny < quad_size
+            and maxy < quad_size
+        ):
+            ul = code
+        elif (
+            minx >= quad_size
+            and maxx >= quad_size
+            and miny < quad_size
+            and maxy < quad_size
+        ):
+            ur = code
+        elif (
+            minx < quad_size
+            and maxx < quad_size
+            and miny >= quad_size
+            and maxy >= quad_size
+        ):
+            ll = code
+        elif (
+            minx >= quad_size
+            and maxx >= quad_size
+            and miny >= quad_size
+            and maxy >= quad_size
+        ):
+            lr = code
+        else:
+            ul = code
+
+    row1 = np.hstack((image, hm))
+    row2 = np.hstack((ul, ur))
+    row3 = np.hstack((ll, lr))
+
+    return np.vstack((row1, row2, row3))
 
 
 def display_prediction(
@@ -124,7 +267,9 @@ def display_prediction(
     display[0:h, w : w * 2, 0] = (heatmap[0, :, :] * 255.0).astype(np.uint8)
     display[0:h, w * 2 : w * 3, 1] = (heatmap[1, :, :] * 255.0).astype(np.uint8)
 
-    display[h : h * 2, 0:w, :] = code[:, :, :] if not est_center is None else np.ones_like(code) * 128
+    display[h : h * 2, 0:w, :] = (
+        code[:, :, :] if not est_center is None else np.ones_like(code) * 128
+    )
     display[h : h * 2, w : w * 2, 2] = (heatmap[2, :, :] * 255.0).astype(np.uint8)
     display[h : h * 2, w * 2 : w * 3, 0] = (heatmap[3, :, :] * 255.0).astype(np.uint8)
     display[h : h * 2, w * 2 : w * 3, 1] = (heatmap[3, :, :] * 255.0).astype(np.uint8)
@@ -229,13 +374,20 @@ def make_random_background(size: int) -> NDArray:
     return bg
 
 
-def make_random_homography(qr_size: int, image_size: int) -> tuple[NDArray, NDArray]:
+def make_random_homography(
+    qr_size: int,
+    image_size: int,
+    min_scale: float = 0.05,
+    offset: NDArray = np.array([0.0, 0.0]),
+) -> tuple[NDArray, NDArray]:
     """
     Make a random homography to transform the QR within the boundaries of the target image.
 
     Parameters:
         qr_size: Size of the QR code.
         image_size: Size of the image.
+        min_scale: The minimum scale from origin while creating homograpy.
+        offset: Vector to transform to a specific quadrant.
 
     Returns:
         Tuple (H, destination points: UL, UR, LL, LR).
@@ -251,7 +403,7 @@ def make_random_homography(qr_size: int, image_size: int) -> tuple[NDArray, NDAr
 
     # Calculate norms and scale factors for each of the points.
     norm = np.linalg.norm(dst, axis=1).reshape(4, 1)
-    scale = np.random.uniform(0.05 * d_image, d_image, (4, 1))
+    scale = np.random.uniform(min_scale * d_image, d_image, (4, 1))
 
     # Scale the corners.
     dst = (dst / norm) * scale
@@ -287,6 +439,7 @@ def make_random_homography(qr_size: int, image_size: int) -> tuple[NDArray, NDAr
     dst += trans
 
     # Find homography.
+    dst += offset
     H, _ = cv.findHomography(src, dst)
 
     return H, dst
@@ -340,3 +493,12 @@ def warpCode(image: NDArray, H: NDArray) -> NDArray:
     gray = cv.warpPerspective(gray, H, dsize=image.shape[:2])
     cv.threshold(gray, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU, dst=gray)
     return cv.cvtColor(gray, cv.COLOR_GRAY2RGB)
+
+
+def multicode_layout() -> tuple[int, NDArray]:
+    count = np.random.randint(0, 4)
+
+    if count == 0:
+        return count, np.array([], dtype=int)
+    else:
+        return count, np.random.choice(range(4), size=(count,), replace=False)
