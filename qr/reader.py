@@ -5,6 +5,17 @@ import torch
 import torch.nn.functional as F
 
 Peaks = namedtuple("Peaks", ["ul", "ur", "ll", "lr", "center"])
+"""
+Named tuple representing sub-pixel peaks from a heatmap, grouped
+into their corner classes.
+"""
+
+
+def localize_codes(heatmap: torch.Tensor) -> None:
+    """
+    Localize codes from a multibatch heatmap.
+    """
+    assert len(heatmap.shape) == 4
 
 
 def nms(heatmap: torch.Tensor, kernel_size: int = 3) -> torch.Tensor:
@@ -29,20 +40,20 @@ def nms(heatmap: torch.Tensor, kernel_size: int = 3) -> torch.Tensor:
     return heatmap * (max == heatmap)
 
 
-def peak_coordinates(
+def heatmap_peaks(
     heatmap: torch.Tensor, k: int = 10, threshold: float = 0.4
 ) -> list[Peaks]:
     """
-    Extract peak coordinates from a heatmap.
+    Extract peak coordinates from a multibatch heatmap.
 
     Parameters:
-        heatmap: Heatmap channels (expect B 5 H W).
-        k: Extract k peaks at most.
-        threshold: Value threshold for peaks.
+        heatmap: Heatmap (expect B 5 H W).
+        k: Extract k peaks at most per batch instance
+        threshold: Value threshold for peak suppression.
 
     Returns:
-        List of Peaks for ul, ur, ll, lr and center. One peak per batch instance.
-        All peaks are sorted in strongest first order.
+        List of peaks, one Peaks object per batch instance.
+        Per Peaks object, the peaks are sorted in strongest first order.
     """
     assert len(heatmap.shape) == 4
     assert heatmap.shape[1] == 5  # C
@@ -54,13 +65,13 @@ def peak_coordinates(
     B, C, _, _ = peakmap.shape
     heatmap_peaks = torch.topk(peakmap.view(B, C, -1), k=k)
 
-    # Generate one Peaks object per batch.
+    # Generate one Peaks object per batch instance.
     peaks = []
     for b in range(B):
         points = []
         for c in range(C):
             points.append(
-                _channel_peak_coordinates(
+                _per_channel_peaks(
                     heatmap_peaks.values[b, c],
                     heatmap_peaks.indices[b, c],
                     heatmap[b, c],
@@ -72,7 +83,7 @@ def peak_coordinates(
     return peaks
 
 
-def _channel_peak_coordinates(
+def _per_channel_peaks(
     peak_values: torch.Tensor,
     peak_indices: torch.Tensor,
     heatmap: torch.Tensor,

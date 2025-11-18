@@ -18,15 +18,17 @@ def main(options: argparse.Namespace) -> None:
     heatmap = torch.tensor(heatmap).unsqueeze(0)
     peakmap = reader.nms(heatmap)
 
-    print(points)
+    print(f"ground truth points=\n{points}")
 
-    peaks = reader.peak_coordinates(heatmap)
+    peaks = reader.heatmap_peaks(heatmap)
     for p in peaks:
-        print(p.ul)
-        print(p.ur)
-        print(p.ll)
-        print(p.lr)
-        print(p.center)
+        print(f"ul=\n{p.ul}")
+        print(f"ur=\n{p.ur}")
+        print(f"ll=\n{p.ll}")
+        print(f"lr=\n{p.lr}")
+        print(f"center=\n{p.center}")
+
+    reader.localize_codes(heatmap)
 
     plt.figure(figsize=(12, 8))
     labels = ("UL", "UR", "LL", "LR", "C")
