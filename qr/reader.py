@@ -1,8 +1,41 @@
+from __future__ import annotations
 from collections import namedtuple
-from functools import partial
 
 import torch
 import torch.nn.functional as F
+
+
+class Code:
+    """
+    Class representing a detected code.
+    """
+
+    def __init__(
+        self: Code,
+        ul: torch.Tensor,
+        ur: torch.Tensor,
+        ll: torch.Tensor,
+        lr: torch.Tensor,
+        center: torch.Tensor,
+        error: float,
+    ) -> None:
+        self.ul = ul.clone()
+        self.ur = ur.clone()
+        self.ll = ll.clone()
+        self.lr = lr.clone()
+        self.center = center.clone()
+        self.error = error
+        self.homography = None
+
+    def __repr__(self: Code) -> str:
+        return (
+            f"Code(ul={self.ul},\n"
+            f"     ur={self.ur},\n"
+            f"     ll={self.ll},\n"
+            f"     lr={self.lr},\n"
+            f"     center={self.center})\n"
+        )
+
 
 Peaks = namedtuple("Peaks", ["ul", "ur", "ll", "lr", "center"])
 """
@@ -11,137 +44,13 @@ into their corner classes.
 """
 
 
-def localize_codes(heatmap: torch.Tensor) -> None:
+def localize_codes(heatmap: torch.Tensor) -> list[list[Code]]:
     """
     Localize codes from a multibatch heatmap.
     """
     assert len(heatmap.shape) == 4
 
-    list(map(_localize_codes, heatmap_peaks(heatmap)))
-
-
-def _localize_codes(peaks: Peaks) -> list[int]:
-    ul_indices = list(range(len(peaks.ul)))
-    ur_indices = list(range(len(peaks.ur)))
-    ll_indices = list(range(len(peaks.ll)))
-    lr_indices = list(range(len(peaks.lr)))
-
-    codes = []
-    for center in peaks.center:
-        print(f"testing center={center}")
-
-        lr_ul_pairs = _find_opposing_pairs(
-            center,
-            indices1=lr_indices,
-            points1=peaks.lr,
-            indices2=ul_indices,
-            points2=peaks.ul,
-        )
-        if lr_ul_pairs == []:
-            print(" no lr/ul pairs found")
-            continue
-
-        ll_ur_pairs = _find_opposing_pairs(
-            center,
-            indices1=ll_indices,
-            points1=peaks.ll,
-            indices2=ur_indices,
-            points2=peaks.ur,
-        )
-        if ll_ur_pairs == []:
-            print(" no ll/ur pairs found")
-            continue
-
-        print(f"lr_ul_pairs={lr_ul_pairs}")
-        print(f"ll_ur_pairs={ll_ur_pairs}")
-
-        result = _validate_points(
-            center, lr_ul_pairs=lr_ul_pairs, ll_ur_pairs=ll_ur_pairs, peaks=peaks
-        )
-        if not result is None:
-            ul, ur, ll, lr, error = result
-
-            print(f"Code found with error={error:.2f}")
-            
-
-            ul_indices.remove(ul)
-            ur_indices.remove(ur)
-            ll_indices.remove(ll)
-            lr_indices.remove(lr)
-
-    return codes
-
-
-def _find_opposing_pairs(
-    center: torch.Tensor,
-    indices1: list[int],
-    points1: torch.Tensor,
-    indices2: list[int],
-    points2: torch.Tensor,
-    eps: float = 1e-2,
-) -> list[tuple[int, int]]:
-    index_map1 = {}
-    for i in indices1:
-        index_map1[i] = _normal_vector(points1[i] - center)
-
-    index_map2 = {}
-    for i in indices2:
-        index_map2[i] = _normal_vector(points2[i] - center)
-
-    pairs = []
-    for i1, v1 in index_map1.items():
-        for i2, v2 in index_map2.items():
-            value = torch.dot(v1, v2).item()
-            if value <= -1.0 + eps:
-                pairs.append((i1, i2))
-
-    return pairs
-
-
-def _normal_vector(vec: torch.Tensor) -> torch.Tensor:
-    return vec / torch.linalg.norm(vec)
-
-
-def _validate_points(
-    center: torch.Tensor,
-    lr_ul_pairs: list[tuple[int, int]],
-    ll_ur_pairs: list[tuple[int, int]],
-    peaks: Peaks,
-    threshold: float = 3.0,
-) -> tuple[int, int, int, int, float] | None:
-    result = None
-    lowest_error = 1000.0
-
-    for lr, ul in lr_ul_pairs:
-        l1 = _hline(peaks.lr[lr], peaks.ul[ul])
-        for ll, ur in ll_ur_pairs:
-            l2 = _hline(peaks.ll[ll], peaks.ur[ur])
-
-            est_center = _hcross(l1, l2)
-            if not est_center is None:
-                error = torch.linalg.norm(center - est_center).item()
-                if error < threshold and error < lowest_error:
-                    lowest_error = error
-                    result = (ul, ur, ll, lr, error)
-
-    return result
-
-
-def _hline(pt1: torch.Tensor, pt2: torch.Tensor) -> torch.Tensor:
-    x1, y1 = pt1
-    x2, y2 = pt2
-
-    a = y1 - y2
-    b = x2 - x1
-    c = x1 * y2 - x2 * y1
-
-    return torch.tensor([a, b, c])
-
-
-def _hcross(l1: torch.Tensor, l2: torch.Tensor) -> torch.Tensor | None:
-    x, y, w = torch.linalg.cross(l1, l2)
-
-    return torch.tensor([x / w, y / w]) if w > 1e-5 else None
+    return list(map(_localize_codes, heatmap_peaks(heatmap)))
 
 
 def nms(heatmap: torch.Tensor, kernel_size: int = 3) -> torch.Tensor:
@@ -215,6 +124,18 @@ def _per_channel_peaks(
     heatmap: torch.Tensor,
     threshold: float,
 ) -> torch.Tensor:
+    """
+    Extract peak coordinates from a single heatmap channel.
+
+    Parameters:
+        peak_values: Detected peak values.
+        peak_indices: Detected peak linear indices.
+        heatmap: Heatmap channel.
+        threshold: Supression threshold for peak values.
+
+    Returns:
+        Tensor with sub-pixel peak coordinates.
+    """
     assert peak_values.shape == peak_indices.shape
 
     H, W = heatmap.shape
@@ -242,3 +163,148 @@ def _per_channel_peaks(
             points.append(torch.tensor([x, y], dtype=torch.float32))
 
     return torch.stack(points)
+
+
+def _localize_codes(peaks: Peaks) -> list[Code]:
+    """
+    Localize codes from a Peaks object.
+
+    Parameters:
+        peaks: The peaks object.
+
+    Returns:
+        A list of detected codes.
+    """
+    ul_indices = list(range(len(peaks.ul)))
+    ur_indices = list(range(len(peaks.ur)))
+    ll_indices = list(range(len(peaks.ll)))
+    lr_indices = list(range(len(peaks.lr)))
+
+    codes = []
+    for center in peaks.center:
+        print(f"testing center={center}")
+
+        lr_ul_pairs = _find_opposing_pairs(
+            center,
+            indices1=lr_indices,
+            points1=peaks.lr,
+            indices2=ul_indices,
+            points2=peaks.ul,
+        )
+        if lr_ul_pairs == []:
+            continue
+
+        ll_ur_pairs = _find_opposing_pairs(
+            center,
+            indices1=ll_indices,
+            points1=peaks.ll,
+            indices2=ur_indices,
+            points2=peaks.ur,
+        )
+        if ll_ur_pairs == []:
+            continue
+
+        result = _validate_points(
+            center, lr_ul_pairs=lr_ul_pairs, ll_ur_pairs=ll_ur_pairs, peaks=peaks
+        )
+        if not result is None:
+            ul, ur, ll, lr, error = result
+
+            code = Code(
+                ul=peaks.ul[ul],
+                ur=peaks.ur[ur],
+                ll=peaks.ll[ll],
+                lr=peaks.lr[lr],
+                center=center,
+                error=error,
+            )
+            codes.append(code)
+
+            ul_indices.remove(ul)
+            ur_indices.remove(ur)
+            ll_indices.remove(ll)
+            lr_indices.remove(lr)
+
+    return codes
+
+
+def _find_opposing_pairs(
+    center: torch.Tensor,
+    indices1: list[int],
+    points1: torch.Tensor,
+    indices2: list[int],
+    points2: torch.Tensor,
+    eps: float = 1e-2,
+) -> list[tuple[int, int]]:
+    """
+    Helper function to find opposing pairs of corners on each side of the center.
+    """
+    index_map1 = {}
+    for i in indices1:
+        index_map1[i] = _normal_vector(points1[i] - center)
+
+    index_map2 = {}
+    for i in indices2:
+        index_map2[i] = _normal_vector(points2[i] - center)
+
+    pairs = []
+    for i1, v1 in index_map1.items():
+        for i2, v2 in index_map2.items():
+            value = torch.dot(v1, v2).item()
+            if value <= -1.0 + eps:
+                pairs.append((i1, i2))
+
+    return pairs
+
+
+def _normal_vector(vec: torch.Tensor) -> torch.Tensor:
+    """
+    Normalise the vector.
+    """
+    return vec / torch.linalg.norm(vec)
+
+
+def _validate_points(
+    center: torch.Tensor,
+    lr_ul_pairs: list[tuple[int, int]],
+    ll_ur_pairs: list[tuple[int, int]],
+    peaks: Peaks,
+    threshold: float = 3.0,
+) -> tuple[int, int, int, int, float] | None:
+    """
+    Validate corner points to see if any of their line intersections are close
+    enough to the center coordinate.
+    """
+    result = None
+    lowest_error = 1000.0
+
+    for lr, ul in lr_ul_pairs:
+        l1 = _hline(peaks.lr[lr], peaks.ul[ul])
+        for ll, ur in ll_ur_pairs:
+            l2 = _hline(peaks.ll[ll], peaks.ur[ur])
+
+            est_center = _hcross(l1, l2)
+            if not est_center is None:
+                error = torch.linalg.norm(center - est_center).item()
+                if error < threshold and error < lowest_error:
+                    lowest_error = error
+                    result = (ul, ur, ll, lr, error)
+
+    return result
+
+
+def _hline(pt1: torch.Tensor, pt2: torch.Tensor) -> torch.Tensor:
+    x1, y1 = pt1
+    x2, y2 = pt2
+
+    a = y1 - y2
+    b = x2 - x1
+    c = x1 * y2 - x2 * y1
+
+    return torch.tensor([a, b, c])
+
+
+def _hcross(l1: torch.Tensor, l2: torch.Tensor) -> torch.Tensor | None:
+    x, y, w = torch.linalg.cross(l1, l2)
+
+    return torch.tensor([x / w, y / w]) if w > 1e-5 else None

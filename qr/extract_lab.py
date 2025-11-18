@@ -20,15 +20,8 @@ def main(options: argparse.Namespace) -> None:
 
     print(f"ground truth points=\n{points}")
 
-    peaks = reader.heatmap_peaks(heatmap)
-    for p in peaks:
-        print(f"ul=\n{p.ul}")
-        print(f"ur=\n{p.ur}")
-        print(f"ll=\n{p.ll}")
-        print(f"lr=\n{p.lr}")
-        print(f"center=\n{p.center}")
-
-    reader.localize_codes(heatmap)
+    codes = reader.localize_codes(heatmap)
+    print(codes)
 
     plt.figure(figsize=(12, 8))
     labels = ("UL", "UR", "LL", "LR", "C")
