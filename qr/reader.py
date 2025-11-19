@@ -1,6 +1,9 @@
 from __future__ import annotations
 from collections import namedtuple
 
+import cv2 as cv
+import numpy as np
+from numpy.typing import NDArray
 import torch
 import torch.nn.functional as F
 
@@ -19,6 +22,9 @@ class Code:
         center: torch.Tensor,
         error: float,
     ) -> None:
+        """
+        Create a code object.
+        """
         self.points = torch.zeros((5, 2), dtype=torch.float32)
         self.points[0] = ul
         self.points[1] = ur
@@ -27,10 +33,37 @@ class Code:
         self.points[4] = center
 
         self.error = error
-        self.homography = None
 
     def corners(self: Code) -> torch.Tensor:
+        """
+        Return the cornes points in a (4, 2) tensor.
+        """
         return self.points[:4]
+
+    def find_homography(self: Code, size: int) -> NDArray:
+        """
+        Find a homograpy from the points to the given (square) image size.
+        """
+        dst_corners = np.array(
+            [[0.0, 0.0], [size - 1, 0.0], [0.0, size - 1], [size - 1, size - 1]]
+        )
+
+        H, _ = cv.findHomography(self.corners().numpy(), dst_corners)
+
+        return H
+    
+    def straight(self: Code, rgb: NDArray) -> NDArray:
+        """
+        Return an image with a straight, rectified and slightly
+        preprocessed code.
+        """
+        H = self.find_homography(rgb.shape[0])
+
+        gray = cv.cvtColor(rgb, cv.COLOR_RGB2GRAY)
+        gray = cv.warpPerspective(gray, H, dsize=rgb.shape[:2])
+        cv.threshold(gray, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU, dst=gray)
+
+        return cv.cvtColor(gray, cv.COLOR_GRAY2RGB)
 
     def __repr__(self: Code) -> str:
         return (

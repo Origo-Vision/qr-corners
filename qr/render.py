@@ -141,13 +141,10 @@ def display_sample(image: torch.Tensor, heatmap: torch.Tensor) -> NDArray:
     rgb = (image.permute(1, 2, 0).numpy() * 255.0).astype(np.uint8)
     hm = heatmap_to_rgb(heatmap.numpy())
 
-    dst = make_corner_points(rgb.shape[0])
-    [[detection]] = reader.localize_codes(heatmap.unsqueeze(0))
+    # Expect to find a single code for samples.
+    [[code]] = reader.localize_codes(heatmap.unsqueeze(0))
 
-    H, _ = cv.findHomography(detection.corners().numpy(), dst)
-    code = warpCode(rgb, H)
-
-    return np.hstack((rgb, hm, code))
+    return np.hstack((rgb, hm, code.straight(rgb)))
 
 
 def display_multisample(image: NDArray, heatmap: NDArray, points: NDArray) -> NDArray:
