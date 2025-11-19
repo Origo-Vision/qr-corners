@@ -293,6 +293,24 @@ def _validate_points(
     return result
 
 
+def _proj_point(a: torch.Tensor, b: torch.Tensor, pt: torch.Tensor) -> float:
+    pa = pt - a
+    ba = b - a
+
+    return (torch.dot(pa, ba) / torch.dot(ba, ba)).item()
+
+
+def _ortho_dist(a: torch.Tensor, b: torch.Tensor, pt: torch.Tensor) -> float:
+    ax, ay = a
+    bx, by = b
+    px, py = pt
+
+    nom = torch.abs((bx - ax) * (ay - py) - (ax - px) * (by - ay))
+    den = torch.linalg.norm(b - a)
+
+    return (nom / den).item()
+
+
 def _hline(pt1: torch.Tensor, pt2: torch.Tensor) -> torch.Tensor:
     x1, y1 = pt1
     x2, y2 = pt2
