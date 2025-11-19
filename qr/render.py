@@ -496,7 +496,7 @@ def warpCode(image: NDArray, H: NDArray) -> NDArray:
 
 
 def multicode_layout() -> tuple[int, NDArray]:
-    count = np.random.randint(0, 4)
+    count = np.random.randint(0, 5)
 
     if count == 0:
         return count, np.array([], dtype=int)
