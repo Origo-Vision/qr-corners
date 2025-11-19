@@ -182,9 +182,7 @@ def _localize_codes(peaks: Peaks) -> list[Code]:
 
     codes = []
     for center in peaks.center:
-        print(f"testing center={center}")
-
-        lr_ul_pairs = _find_opposing_pairs(
+        lr_ul_pairs = _find_diagonal_pairs(
             center,
             indices1=lr_indices,
             points1=peaks.lr,
@@ -194,7 +192,7 @@ def _localize_codes(peaks: Peaks) -> list[Code]:
         if lr_ul_pairs == []:
             continue
 
-        ll_ur_pairs = _find_opposing_pairs(
+        ll_ur_pairs = _find_diagonal_pairs(
             center,
             indices1=ll_indices,
             points1=peaks.ll,
@@ -228,40 +226,30 @@ def _localize_codes(peaks: Peaks) -> list[Code]:
     return codes
 
 
-def _find_opposing_pairs(
+def _find_diagonal_pairs(
     center: torch.Tensor,
     indices1: list[int],
     points1: torch.Tensor,
     indices2: list[int],
     points2: torch.Tensor,
-    eps: float = 1e-2,
+    error: float = 3.0,
 ) -> list[tuple[int, int]]:
     """
-    Helper function to find opposing pairs of corners on each side of the center.
+    Helper function to find diagonal pairs of corners on each side of the center.
     """
-    index_map1 = {}
-    for i in indices1:
-        index_map1[i] = _normal_vector(points1[i] - center)
-
-    index_map2 = {}
-    for i in indices2:
-        index_map2[i] = _normal_vector(points2[i] - center)
-
     pairs = []
-    for i1, v1 in index_map1.items():
-        for i2, v2 in index_map2.items():
-            value = torch.dot(v1, v2).item()
-            if value <= -1.0 + eps:
-                pairs.append((i1, i2))
+    for idx1 in indices1:
+        pt1 = points1[idx1]
+        for idx2 in indices2:
+            pt2 = points2[idx2]
+
+            # Project center on the line pt2 - pt1, must be 0 > t < 1.
+            t = _proj_point(pt1, pt2, center)
+            # Orthogonal distance from line must be < error.
+            if t > 0.0 and t < 1.0 and _ortho_dist(pt1, pt2, center) < error:
+                pairs.append((idx1, idx2))
 
     return pairs
-
-
-def _normal_vector(vec: torch.Tensor) -> torch.Tensor:
-    """
-    Normalise the vector.
-    """
-    return vec / torch.linalg.norm(vec)
 
 
 def _validate_points(
