@@ -3,8 +3,10 @@ import math
 import cv2 as cv
 import numpy as np
 from numpy.typing import NDArray
+import torch
 from qrcode import QRCode
 
+import reader
 import util
 
 
@@ -125,25 +127,27 @@ def make_random_multisample(sigma: float) -> tuple[NDArray, NDArray, NDArray]:
     return image, heatmap, points
 
 
-def display_sample(image: NDArray, heatmap: NDArray, points: NDArray) -> NDArray:
+def display_sample(image: torch.Tensor, heatmap: torch.Tensor) -> NDArray:
     """
     Make a sample triplet displayable.
 
     Parameters:
-        image: The image to decode.
-        heatmap: The heatmap channels.
-        points: The corner and center points for the code in the image.
+        image: The image to decode (torch.Tensor).
+        heatmap: The heatmap channels (torch.Tensor).
 
     Returns:
-        An RGB image for display.
+        An RGB image for display (NDArray).
     """
-    hm = heatmap_to_rgb(heatmap)
+    rgb = (image.permute(1, 2, 0).numpy() * 255.0).astype(np.uint8)
+    hm = heatmap_to_rgb(heatmap.numpy())
 
-    dst = make_corner_points(image.shape[0])
-    H, _ = cv.findHomography(points[:4], dst)
-    code = warpCode(image, H)
+    dst = make_corner_points(rgb.shape[0])
+    [[detection]] = reader.localize_codes(heatmap.unsqueeze(0))
 
-    return np.hstack((image, hm, code))
+    H, _ = cv.findHomography(detection.corners().numpy(), dst)
+    code = warpCode(rgb, H)
+
+    return np.hstack((rgb, hm, code))
 
 
 def display_multisample(image: NDArray, heatmap: NDArray, points: NDArray) -> NDArray:

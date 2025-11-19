@@ -19,21 +19,26 @@ class Code:
         center: torch.Tensor,
         error: float,
     ) -> None:
-        self.ul = ul.clone()
-        self.ur = ur.clone()
-        self.ll = ll.clone()
-        self.lr = lr.clone()
-        self.center = center.clone()
+        self.points = torch.zeros((5, 2), dtype=torch.float32)
+        self.points[0] = ul
+        self.points[1] = ur
+        self.points[2] = ll
+        self.points[3] = lr
+        self.points[4] = center
+
         self.error = error
         self.homography = None
 
+    def corners(self: Code) -> torch.Tensor:
+        return self.points[:4]
+
     def __repr__(self: Code) -> str:
         return (
-            f"Code(ul={self.ul},\n"
-            f"     ur={self.ur},\n"
-            f"     ll={self.ll},\n"
-            f"     lr={self.lr},\n"
-            f"     center={self.center})\n"
+            f"Code(ul={self.points[0]},\n"
+            f"     ur={self.points[1]},\n"
+            f"     ll={self.points[2]},\n"
+            f"     lr={self.points[3]},\n"
+            f"     center={self.points[4]})\n"
         )
 
 

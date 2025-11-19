@@ -45,9 +45,8 @@ def play(options: argparse.Namespace) -> None:
         datadir=options.datadir,
         augmentations=util.augmentations() if options.augment else Compose([]),
     )
-    for image, heatmap, points in dataset:
-        image = (image.permute(1, 2, 0).numpy() * 255.0).astype(np.uint8)
-        display = render.display_sample(image, heatmap.numpy(), points.numpy())
+    for image, heatmap, _ in dataset:
+        display = render.display_sample(image, heatmap)
         display = cv.cvtColor(display, cv.COLOR_RGB2BGR)
         cv.imshow("play", display)
         key = cv.waitKey(0)
