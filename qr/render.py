@@ -147,37 +147,36 @@ def display_sample(image: torch.Tensor, heatmap: torch.Tensor) -> NDArray:
     return np.hstack((rgb, hm, code.straight(rgb)))
 
 
-def display_multisample(image: NDArray, heatmap: NDArray, points: NDArray) -> NDArray:
+def display_multisample(image: torch.Tensor, heatmap: torch.Tensor) -> NDArray:
     """
     Make a multi sample displayable.
 
     Parameters:
-        image: The image to decode.
-        heatmap: The heatmap channels.
-        points: The corner and center points for the code in the image.
+        image: The image to decode (torch.Tensor).
+        heatmap: The heatmap channels (torch.Tensor).
 
     Returns:
-        An RGB image for display.
+        An RGB image for display (NDArray).
     """
-    hm = heatmap_to_rgb(heatmap)
+    rgb = (image.permute(1, 2, 0).numpy() * 255.0).astype(np.uint8)
+    hm = heatmap_to_rgb(heatmap.numpy())
 
-    gray = np.ones_like(image) * 128
+    gray = np.ones_like(rgb) * 128
     ul = gray
     ur = gray
     ll = gray
     lr = gray
 
-    image_size = image.shape[0]
-    dst = make_corner_points(image_size)
+    quad_size = rgb.shape[0] >> 1
 
-    quad_size = image_size >> 1
-    for point in points:
+    [codes] = reader.localize_codes(heatmap.unsqueeze(0))
+    for code in codes:
         # Estimate quadrant.
-        minx, miny = np.min(point[:4], axis=0)
-        maxx, maxy = np.max(point[:4], axis=0)
+        corners = code.corners().numpy()
+        minx, miny = np.min(corners, axis=0)
+        maxx, maxy = np.max(corners, axis=0)
 
-        H, _ = cv.findHomography(point[:4], dst)
-        code = warpCode(image, H)
+        straight = code.straight(rgb)
 
         if (
             minx < quad_size
@@ -185,32 +184,32 @@ def display_multisample(image: NDArray, heatmap: NDArray, points: NDArray) -> ND
             and miny < quad_size
             and maxy < quad_size
         ):
-            ul = code
+            ul = straight
         elif (
             minx >= quad_size
             and maxx >= quad_size
             and miny < quad_size
             and maxy < quad_size
         ):
-            ur = code
+            ur = straight
         elif (
             minx < quad_size
             and maxx < quad_size
             and miny >= quad_size
             and maxy >= quad_size
         ):
-            ll = code
+            ll = straight
         elif (
             minx >= quad_size
             and maxx >= quad_size
             and miny >= quad_size
             and maxy >= quad_size
         ):
-            lr = code
+            lr = straight
         else:
-            ul = code
+            ul = straight
 
-    row1 = np.hstack((image, hm))
+    row1 = np.hstack((rgb, hm))
     row2 = np.hstack((ul, ur))
     row3 = np.hstack((ll, lr))
 
