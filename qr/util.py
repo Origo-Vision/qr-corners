@@ -66,6 +66,18 @@ def augmentations() -> Compose:
         ]
     )
 
+def rgb_to_tensor(rgb: NDArray) -> torch.Tensor:
+    """
+    Convert a RGB image (H, W, C) to tensor (1, C, H, W).
+
+    Parameters:
+        rgb: The image.
+    
+    Returns:
+        The tensor.
+    """
+    Xb = torch.tensor(rgb.transpose(2, 0, 1), dtype=torch.float32) / 255.0
+    return Xb.unsqueeze(0)
 
 def check_predicted_points(points: torch.Tensor) -> tuple[torch.Tensor, float] | None:
     assert points.shape == (5, 2)

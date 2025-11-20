@@ -7,6 +7,7 @@ from numpy.typing import NDArray
 import torch
 import torch.nn.functional as F
 
+import util
 
 class Code:
     """
@@ -75,12 +76,34 @@ class Code:
         )
 
 
+
 Peaks = namedtuple("Peaks", ["ul", "ur", "ll", "lr", "center"])
 """
 Named tuple representing sub-pixel peaks from a heatmap, grouped
 into their corner classes.
 """
 
+
+def mean_code_accuracy(pred: list[list[Code]], target: list[list[Code]]) -> float:
+    # Must be same number of batches.
+    assert len(pred) == len(target)
+
+    accuracy = 0.0
+    for pbatch, tbatch in zip(pred, target):
+        if len(pbatch) == len(tbatch):
+            min_error = 100.
+            for p in pbatch:
+                for t in tbatch:
+                    error = util.mean_point_accuracy(p.points, t.points).item()
+                    if error < min_error:
+                        min_error = error
+
+            accuracy += min_error
+        else:
+            # Brute-force heuristic; each mismatch in number of codes yields 25 penalty.
+            accuracy += abs(len(pbatch) - len(tbatch)) * 25.
+
+    return accuracy
 
 def localize_codes(heatmap: torch.Tensor) -> list[list[Code]]:
     """

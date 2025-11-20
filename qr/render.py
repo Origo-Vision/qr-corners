@@ -216,6 +216,13 @@ def display_multisample(image: torch.Tensor, heatmap: torch.Tensor) -> NDArray:
     return np.vstack((row1, row2, row3))
 
 
+def display_prediction2(rgb: NDArray, target: torch.Tensor, pred: torch.Tensor) -> NDArray:
+    hm = heatmap_to_rgb(pred.squeeze().numpy())
+    
+    row1 = np.hstack((rgb, hm))
+
+    return row1
+
 def display_prediction(
     image: NDArray,
     heatmap: NDArray,
