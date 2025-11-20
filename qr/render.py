@@ -208,8 +208,10 @@ def display_prediction2(
     ll = gray
     lr = gray
 
-    [codes] = reader.localize_codes(pred)
-    for code in codes:
+    [target_codes] = reader.localize_codes(target)
+    [predicted_codes] = reader.localize_codes(pred)
+
+    for code in predicted_codes:
         quad, straight = code_quadrant(rgb, code)
         if quad == 2:
             ur = straight
@@ -219,6 +221,17 @@ def display_prediction2(
             lr = straight
         else:
             ul = straight
+
+    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255), (255, 255, 0)]
+    for code in target_codes:
+        for i in range(5):
+            point = tuple(map(int, code.points[i]))
+            cv.drawMarker(rgb, point, colors[i], thickness=2)
+
+    for code in predicted_codes:
+        for i in range(5):
+            point = tuple(map(int, code.points[i]))
+            cv.circle(rgb, point, radius=5, color=colors[i], thickness=2)
 
     row1 = np.hstack((rgb, hm))
     row2 = np.hstack((ul, ur))
