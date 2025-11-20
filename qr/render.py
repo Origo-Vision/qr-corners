@@ -167,44 +167,14 @@ def display_multisample(image: torch.Tensor, heatmap: torch.Tensor) -> NDArray:
     ll = gray
     lr = gray
 
-    quad_size = rgb.shape[0] >> 1
-
     [codes] = reader.localize_codes(heatmap.unsqueeze(0))
     for code in codes:
-        # Estimate quadrant.
-        corners = code.corners().numpy()
-        minx, miny = np.min(corners, axis=0)
-        maxx, maxy = np.max(corners, axis=0)
-
-        straight = code.straight(rgb)
-
-        if (
-            minx < quad_size
-            and maxx < quad_size
-            and miny < quad_size
-            and maxy < quad_size
-        ):
-            ul = straight
-        elif (
-            minx >= quad_size
-            and maxx >= quad_size
-            and miny < quad_size
-            and maxy < quad_size
-        ):
+        quad, straight = code_quadrant(rgb, code)
+        if quad == 2:
             ur = straight
-        elif (
-            minx < quad_size
-            and maxx < quad_size
-            and miny >= quad_size
-            and maxy >= quad_size
-        ):
+        elif quad == 3:
             ll = straight
-        elif (
-            minx >= quad_size
-            and maxx >= quad_size
-            and miny >= quad_size
-            and maxy >= quad_size
-        ):
+        elif quad == 4:
             lr = straight
         else:
             ul = straight
@@ -216,12 +186,46 @@ def display_multisample(image: torch.Tensor, heatmap: torch.Tensor) -> NDArray:
     return np.vstack((row1, row2, row3))
 
 
-def display_prediction2(rgb: NDArray, target: torch.Tensor, pred: torch.Tensor) -> NDArray:
-    hm = heatmap_to_rgb(pred.squeeze().numpy())
-    
-    row1 = np.hstack((rgb, hm))
+def display_prediction2(
+    rgb: NDArray, target: torch.Tensor, pred: torch.Tensor
+) -> NDArray:
+    """
+    Make a prediction displayable.
 
-    return row1
+    Parameters:
+        image: The image to decode.
+        target: The target heatmap.
+        pred: The prediction heatmap.
+
+    Returns:
+        An RGB image for display.
+    """
+    hm = heatmap_to_rgb(pred.squeeze().numpy())
+
+    gray = np.ones_like(rgb) * 128
+    ul = gray
+    ur = gray
+    ll = gray
+    lr = gray
+
+    [codes] = reader.localize_codes(pred)
+    for code in codes:
+        quad, straight = code_quadrant(rgb, code)
+        if quad == 2:
+            ur = straight
+        elif quad == 3:
+            ll = straight
+        elif quad == 4:
+            lr = straight
+        else:
+            ul = straight
+
+    row1 = np.hstack((rgb, hm))
+    row2 = np.hstack((ul, ur))
+    row3 = np.hstack((ll, lr))
+
+    return np.vstack((row1, row2, row3))
+
 
 def display_prediction(
     image: NDArray,
@@ -509,3 +513,38 @@ def multicode_layout() -> tuple[int, NDArray]:
         return count, np.array([], dtype=int)
     else:
         return count, np.random.choice(range(4), size=(count,), replace=False)
+    
+def code_quadrant(rgb: NDArray, code: reader.Code) -> tuple[int, NDArray]:
+    corners = code.corners().numpy()
+    minx, miny = np.min(corners, axis=0)
+    maxx, maxy = np.max(corners, axis=0)
+
+    quad = 1
+    straight = code.straight(rgb)
+
+    quad_size = rgb.shape[0] >> 1
+    if minx < quad_size and maxx < quad_size and miny < quad_size and maxy < quad_size:
+        quad = 1
+    elif (
+        minx >= quad_size
+        and maxx >= quad_size
+        and miny < quad_size
+        and maxy < quad_size
+    ):
+        quad = 2
+    elif (
+        minx < quad_size
+        and maxx < quad_size
+        and miny >= quad_size
+        and maxy >= quad_size
+    ):
+        quad = 3
+    elif (
+        minx >= quad_size
+        and maxx >= quad_size
+        and miny >= quad_size
+        and maxy >= quad_size
+    ):
+        quad = 4
+
+    return quad, straight

@@ -30,7 +30,13 @@ def play(options: argparse.Namespace) -> None:
     cv.namedWindow("play")
     with torch.no_grad():
         while True:
-            rgb, heatmap, _ = render.make_random_multisample(3.0) if options.multi else render.make_random_sample(3.0)
+            rgb, heatmap, _ = (
+                render.make_random_multisample(3.0)
+                if options.multi
+                else render.make_random_sample(3.0)
+            )
+            heatmap=torch.tensor(heatmap).unsqueeze(0)
+
             total_samples += 1
 
             Xb = util.rgb_to_tensor(rgb).to(device)
@@ -43,15 +49,15 @@ def play(options: argparse.Namespace) -> None:
 
             prediction = Yb.cpu()
 
-            target = reader.localize_codes(heatmap=torch.tensor(heatmap).unsqueeze(0))
-            pred = reader.localize_codes(heatmap=prediction)
+            target_codes = reader.localize_codes(heatmap=heatmap)
+            predicted_codes = reader.localize_codes(heatmap=prediction)
 
-            accuracy = reader.mean_code_accuracy(pred, target)
+            accuracy = reader.mean_code_accuracy(predicted_codes, target_codes)
             if accuracy < 3.0:
                 ok_samples += 1
 
             display = render.display_prediction2(
-                rgb, target=torch.tensor(heatmap).unsqueeze(0), pred=prediction
+                rgb, target=heatmap, pred=prediction
             )
 
             cv.imshow("play", cv.cvtColor(display, cv.COLOR_RGB2BGR))
@@ -65,7 +71,6 @@ def play(options: argparse.Namespace) -> None:
                 break
 
         cv.destroyAllWindows()
-
 
 
 def play2(options: argparse.Namespace, center_error_threshold: float = 5.0) -> None:
