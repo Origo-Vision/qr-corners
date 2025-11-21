@@ -1,5 +1,6 @@
 from __future__ import annotations
 from collections import namedtuple
+from functools import partial
 
 import cv2 as cv
 import numpy as np
@@ -298,6 +299,13 @@ def _find_diagonal_pairs(
     """
     Helper function to find diagonal pairs of corners on each side of the center.
     """
+    # Sort indices to start searching in points closer to the center.
+    def squared_distance(points: torch.Tensor, i: int) -> float:
+        return torch.sum((center - points[i])**2).item()
+    
+    indices1 = sorted(indices1, key=partial(squared_distance, points1))
+    indices2 = sorted(indices2, key=partial(squared_distance, points2))
+
     pairs = []
     for idx1 in indices1:
         pt1 = points1[idx1]
