@@ -10,6 +10,7 @@ import torch.nn.functional as F
 
 import util
 
+
 class Code:
     """
     Class representing a detected code.
@@ -53,7 +54,7 @@ class Code:
         H, _ = cv.findHomography(self.corners().numpy(), dst_corners)
 
         return H
-    
+
     def straight(self: Code, rgb: NDArray) -> NDArray:
         """
         Return an image with a straight, rectified and slightly
@@ -77,7 +78,6 @@ class Code:
         )
 
 
-
 Peaks = namedtuple("Peaks", ["ul", "ur", "ll", "lr", "center"])
 """
 Named tuple representing sub-pixel peaks from a heatmap, grouped
@@ -92,7 +92,7 @@ def mean_code_accuracy(pred: list[list[Code]], target: list[list[Code]]) -> floa
     accuracy = 0.0
     for pbatch, tbatch in zip(pred, target):
         if len(pbatch) == len(tbatch):
-            min_error = 100.
+            min_error = 100.0
             for p in pbatch:
                 for t in tbatch:
                     error = util.mean_point_accuracy(p.points, t.points).item()
@@ -102,9 +102,10 @@ def mean_code_accuracy(pred: list[list[Code]], target: list[list[Code]]) -> floa
             accuracy += min_error
         else:
             # Brute-force heuristic; each mismatch in number of codes yields 25 penalty.
-            accuracy += abs(len(pbatch) - len(tbatch)) * 25.
+            accuracy += abs(len(pbatch) - len(tbatch)) * 25.0
 
     return accuracy
+
 
 def localize_codes(heatmap: torch.Tensor) -> list[list[Code]]:
     """
@@ -224,7 +225,7 @@ def _per_channel_peaks(
 
             points.append(torch.tensor([x, y], dtype=torch.float32))
 
-    return torch.stack(points)
+    return torch.stack(points) if len(points) else torch.Tensor()
 
 
 def _localize_codes(peaks: Peaks) -> list[Code]:
@@ -299,10 +300,11 @@ def _find_diagonal_pairs(
     """
     Helper function to find diagonal pairs of corners on each side of the center.
     """
+
     # Sort indices to start searching in points closer to the center.
     def squared_distance(points: torch.Tensor, i: int) -> float:
-        return torch.sum((center - points[i])**2).item()
-    
+        return torch.sum((center - points[i]) ** 2).item()
+
     indices1 = sorted(indices1, key=partial(squared_distance, points1))
     indices2 = sorted(indices2, key=partial(squared_distance, points2))
 
