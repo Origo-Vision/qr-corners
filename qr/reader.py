@@ -138,7 +138,7 @@ def nms(heatmap: torch.Tensor, kernel_size: int = 3) -> torch.Tensor:
 
 
 def heatmap_peaks(
-    heatmap: torch.Tensor, k: int = 10, threshold: float = 0.4
+    heatmap: torch.Tensor, k: int = 10, threshold: float = 0.2
 ) -> list[Peaks]:
     """
     Extract peak coordinates from a multibatch heatmap.
