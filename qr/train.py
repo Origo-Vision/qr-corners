@@ -17,15 +17,14 @@ import util
 
 def snapshot_names(
     options: argparse.Namespace,
-) -> tuple[str, pathlib.Path, pathlib.Path]:
-    # modeldir/mode-loss-epochs-batchsize-time.pth
+) -> tuple[str, pathlib.Path]:
+    # modeldir/best-loss-epochs-batchsize-time.pth
     t = str(time.time()).split(".")[0]
     run_id = f"{options.loss}-{options.scheduler}-e{options.epochs}-b{options.batch_size}-t{t}"
 
-    train = options.modeldir / f"train-{run_id}.pth"
-    valid = options.modeldir / f"valid-{run_id}.pth"
+    valid = options.modeldir / f"best-{run_id}.pth"
 
-    return run_id, train, valid
+    return run_id, valid
 
 
 def train(options: argparse.Namespace) -> None:
@@ -35,8 +34,7 @@ def train(options: argparse.Namespace) -> None:
 
     # Setup stuff for model snapshots.
     options.modeldir.mkdir(parents=True, exist_ok=True)
-    run_id, train_pth, valid_pth = snapshot_names(options)
-    print(f"Will store best training snapshots as={train_pth}")
+    run_id, valid_pth = snapshot_names(options)
     print(f"Will store best validation snapshots as={valid_pth}")
 
     # Create datasets and data loaders.
@@ -104,8 +102,7 @@ def train(options: argparse.Namespace) -> None:
             accum_train_loss += loss.item()
 
         avg_train_loss = accum_train_loss / num_train_batches
-        print(
-            f"\r  avg loss={avg_train_loss:.5f}")
+        print(f"\r  avg loss={avg_train_loss:.5f}")
 
         # Validation.
         print("Validation ...")

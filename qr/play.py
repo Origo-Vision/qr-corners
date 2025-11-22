@@ -30,7 +30,7 @@ def play(options: argparse.Namespace) -> None:
     cv.namedWindow("play")
     with torch.no_grad():
         while True:
-            rgb, heatmap, _ = (
+            rgb, heatmap = (
                 render.make_random_multisample(3.0)
                 if options.multi
                 else render.make_random_sample(3.0)

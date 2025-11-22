@@ -10,7 +10,7 @@ import reader
 import util
 
 
-def make_random_sample(sigma: float) -> tuple[NDArray, NDArray, NDArray]:
+def make_random_sample(sigma: float) -> tuple[NDArray, NDArray]:
     """
     Generate a random sample with a QR code projected on a random background.
 
@@ -51,10 +51,10 @@ def make_random_sample(sigma: float) -> tuple[NDArray, NDArray, NDArray]:
         y, x = np.ogrid[:image_size, :image_size]
         heatmap[i] = np.exp(-((x - cx) ** 2 + (y - cy) ** 2) / (2 * sigma**2))
 
-    return image, heatmap, dst_points
+    return image, heatmap
 
 
-def make_random_multisample(sigma: float) -> tuple[NDArray, NDArray, NDArray]:
+def make_random_multisample(sigma: float) -> tuple[NDArray, NDArray]:
     """
     Generate a random multi sample with one or several QR codes projected on a random background.
 
@@ -122,9 +122,7 @@ def make_random_multisample(sigma: float) -> tuple[NDArray, NDArray, NDArray]:
 
         points.append(dst_points)
 
-    points = np.array(points)
-
-    return image, heatmap, points
+    return image, heatmap
 
 
 def display_sample(image: torch.Tensor, heatmap: torch.Tensor) -> NDArray:
