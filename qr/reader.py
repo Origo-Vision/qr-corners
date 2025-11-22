@@ -85,6 +85,15 @@ into their corner classes.
 """
 
 
+def mean_heatmap_accuracy(pred: torch.Tensor, target: torch.Tensor) -> float:
+    assert pred.shape == target.shape
+
+    predicted_codes = localize_codes(heatmap=pred)
+    target_codes = localize_codes(heatmap=target)
+
+    return mean_code_accuracy(predicted_codes, target_codes)
+
+
 def mean_code_accuracy(pred: list[list[Code]], target: list[list[Code]]) -> float:
     # Must be same number of batches.
     assert len(pred) == len(target)

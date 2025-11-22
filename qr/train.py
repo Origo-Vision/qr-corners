@@ -9,6 +9,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from loss import DiceLoss, MixedLoss
 import models
+import reader
 from scheduler import Scheduler
 from qrdataset import QRDataset
 import util
@@ -89,10 +90,9 @@ def train(options: argparse.Namespace) -> None:
         for batch, data in enumerate(train_loader):
             print(f"\r  batch {batch+1:4d}/{num_train_batches:4d} ... ", end="")
 
-            Xb, Yb, Pb = data
+            Xb, Yb = data
             Xb = Xb.to(device)
             Yb = Yb.to(device)
-            Pb = Pb.to(device)
 
             Ypred = model(Xb)
 
@@ -102,15 +102,10 @@ def train(options: argparse.Namespace) -> None:
             optimizer.step()
 
             accum_train_loss += loss.item()
-            accum_train_accuracy += util.mean_point_accuracy(
-                util.batch_heatmap_points(Ypred), Pb
-            ).item()
 
         avg_train_loss = accum_train_loss / num_train_batches
-        avg_train_accuracy = accum_train_accuracy / num_train_batches
         print(
-            f"\r  avg loss={avg_train_loss:.5f}, avg accuracy={avg_train_accuracy:.2f}"
-        )
+            f"\r  avg loss={avg_train_loss:.5f}")
 
         # Validation.
         print("Validation ...")
@@ -123,19 +118,16 @@ def train(options: argparse.Namespace) -> None:
             for batch, data in enumerate(valid_loader):
                 print(f"\r  batch {batch+1:4d}/{num_valid_batches:4d} ... ", end="")
 
-                Xb, Yb, Pb = data
+                Xb, Yb = data
                 Xb = Xb.to(device)
                 Yb = Yb.to(device)
-                Pb = Pb.to(device)
 
                 Ypred = model(Xb)
 
                 loss = loss_fn(Ypred, Yb)
 
                 accum_valid_loss += loss.item()
-                accum_valid_accuracy += util.mean_point_accuracy(
-                    util.batch_heatmap_points(Ypred), Pb
-                ).item()
+                accum_valid_accuracy += reader.mean_heatmap_accuracy(Ypred, Yb)
 
             avg_valid_loss = accum_valid_loss / num_valid_batches
             avg_valid_accuracy = accum_valid_accuracy / num_valid_batches
@@ -149,18 +141,10 @@ def train(options: argparse.Namespace) -> None:
         )
         writer.add_scalar("charts/avg_train_loss", avg_train_loss, epoch)
         writer.add_scalar("charts/avg_valid_loss", avg_valid_loss, epoch)
-        writer.add_scalar("charts/avg_train_accuracy", avg_train_accuracy, epoch)
         writer.add_scalar("charts/avg_valid_accuracy", avg_valid_accuracy, epoch)
         writer.flush()
 
         # Perform snapshot.
-        if avg_train_accuracy < train_snapshot_accuracy:
-            models.save(model, train_pth)
-            train_snapshot_accuracy = avg_train_accuracy
-            print(
-                f"==> Save model with now lowest training accuracy={train_snapshot_accuracy:.2f}"
-            )
-
         if avg_valid_accuracy < valid_snapshot_accuracy:
             models.save(model, valid_pth)
             valid_snapshot_accuracy = avg_valid_accuracy
