@@ -26,13 +26,18 @@ def generate(options: argparse.Namespace) -> None:
 
     for i in range(options.samples):
         print(f"Generate sample {i+1:5d}/{options.samples:5d}")
-        image, heatmap, points = render.make_random_multisample(options.sigma)
+        image, heatmap = (
+            render.make_random_multisample(options.sigma)
+            if options.multi
+            else render.make_random_sample(3.0)
+        )
 
         image_path = images_dir / f"image_{i:05d}.png"
         cv.imwrite(str(image_path), image)
 
         heatmap_path = heatmaps_dir / f"heatmap_{i:05d}.npy"
         np.save(heatmap_path, heatmap)
+
 
 def play(options: argparse.Namespace) -> None:
     """
@@ -59,7 +64,10 @@ if __name__ == "__main__":
     )
     parser.add_argument("action", type=str, help="The data action (generate or play)")
     parser.add_argument(
-        "--datadir", type=pathlib.Path, required=True, help="The data directory (multi-. will be prepended)"
+        "--datadir",
+        type=pathlib.Path,
+        required=True,
+        help="The data directory (multi- or single- will be prepended)",
     )
     parser.add_argument(
         "--samples", type=int, default=100, help="The number of samples to generate"

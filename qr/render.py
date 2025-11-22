@@ -18,7 +18,7 @@ def make_random_sample(sigma: float) -> tuple[NDArray, NDArray]:
         sigma: Standard deviation for heatmap generation.
 
     Returns:
-        Tuple with RGB image, five channel heatmap and points for the corners and center.
+        Tuple with RGB image and a five channel heatmap.
     """
     # Make QR.
     qr_code = make_qr_code(random_string(10))
@@ -62,14 +62,14 @@ def make_random_multisample(sigma: float) -> tuple[NDArray, NDArray]:
         sigma: Standard deviation for heatmap generation.
 
     Returns:
-        Tuple with RGB image, five channel heatmap and points for the corners and center.
+        Tuple with RGB image and a five channel heatmap.
     """
     count, layout = multicode_layout()
 
     # If the count is zero, the sample is more or less equal to the single sample.
     if count == 0:
-        rgb, heatmap, points = make_random_sample(sigma=sigma)
-        return rgb, heatmap, np.atleast_3d(points).transpose(2, 0, 1)
+        rgb, heatmap = make_random_sample(sigma=sigma)
+        return rgb, heatmap
 
     # Make background image.
     image_size = 256
@@ -184,7 +184,7 @@ def display_multisample(image: torch.Tensor, heatmap: torch.Tensor) -> NDArray:
     return np.vstack((row1, row2, row3))
 
 
-def display_prediction2(
+def display_prediction(
     rgb: NDArray, target: torch.Tensor, pred: torch.Tensor
 ) -> NDArray:
     """
@@ -236,96 +236,6 @@ def display_prediction2(
     row3 = np.hstack((ll, lr))
 
     return np.vstack((row1, row2, row3))
-
-
-def display_prediction(
-    image: NDArray,
-    heatmap: NDArray,
-    pts_true: NDArray,
-    pts_pred: NDArray,
-    est_center: NDArray | None,
-) -> NDArray:
-    """
-    Make a prediction displayable.
-
-    Parameters:
-        image: The image to decode.
-        heatmap: The heatmap channels.
-        pts_true: The true corner points for the code in the image.
-        pts_pred: The predicted corner points for the code in the image.
-        est_center: Estimated center point, if valid.
-
-    Returns:
-        An RGB image for display.
-    """
-    assert pts_true.shape == (5, 2)
-    assert pts_true.shape == pts_pred.shape
-
-    # Warped code.
-    dst = make_corner_points(image.shape[0])
-    H, _ = cv.findHomography(pts_pred[:4], dst)
-    code = warpCode(image, H)
-
-    # Image with true and predicted corners points.
-    colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255), (255, 255, 0)]
-    for i in range(5):
-        pt_true = tuple(map(int, pts_true[i]))
-        pt_pred = tuple(map(int, pts_pred[i]))
-        cv.drawMarker(image, pt_true, colors[i], thickness=2)
-        cv.drawMarker(
-            image, pt_pred, colors[i], markerType=cv.MARKER_TILTED_CROSS, thickness=2
-        )
-
-        if i == 4 and not est_center is None:
-            est_center = tuple(map(int, est_center))
-            cv.circle(image, est_center, radius=5, color=(0, 255, 0), thickness=2)
-
-    # The 2x3 mosaic.
-    h, w = image.shape[:2]
-    display = np.zeros((h * 2, w * 3, 3), np.uint8)
-
-    # Fill in the parts.
-    display[0:h, 0:w, :] = image[:, :, :]
-    display[0:h, w : w * 2, 0] = (heatmap[0, :, :] * 255.0).astype(np.uint8)
-    display[0:h, w * 2 : w * 3, 1] = (heatmap[1, :, :] * 255.0).astype(np.uint8)
-
-    display[h : h * 2, 0:w, :] = (
-        code[:, :, :] if not est_center is None else np.ones_like(code) * 128
-    )
-    display[h : h * 2, w : w * 2, 2] = (heatmap[2, :, :] * 255.0).astype(np.uint8)
-    display[h : h * 2, w * 2 : w * 3, 0] = (heatmap[3, :, :] * 255.0).astype(np.uint8)
-    display[h : h * 2, w * 2 : w * 3, 1] = (heatmap[3, :, :] * 255.0).astype(np.uint8)
-    display[h : h * 2, w * 2 : w * 3, 2] = (heatmap[3, :, :] * 255.0).astype(np.uint8)
-
-    # Draw a thin gray line to mark the shape of the warped code in the heatmaps.
-    for y in range(2):
-        for x in range(1, 3):
-            cv.line(
-                display[y * h : (y + 1) * h, x * w : (x + 1) * w, :],
-                tuple(map(int, pts_true[0])),
-                tuple(map(int, pts_true[1])),
-                (127, 127, 127),
-            )
-            cv.line(
-                display[y * h : (y + 1) * h, x * w : (x + 1) * w, :],
-                tuple(map(int, pts_true[1])),
-                tuple(map(int, pts_true[3])),
-                (127, 127, 127),
-            )
-            cv.line(
-                display[y * h : (y + 1) * h, x * w : (x + 1) * w, :],
-                tuple(map(int, pts_true[3])),
-                tuple(map(int, pts_true[2])),
-                (127, 127, 127),
-            )
-            cv.line(
-                display[y * h : (y + 1) * h, x * w : (x + 1) * w, :],
-                tuple(map(int, pts_true[2])),
-                tuple(map(int, pts_true[0])),
-                (127, 127, 127),
-            )
-
-    return display
 
 
 def heatmap_to_rgb(heatmap: NDArray) -> NDArray:
@@ -524,7 +434,8 @@ def multicode_layout() -> tuple[int, NDArray]:
         return count, np.array([], dtype=int)
     else:
         return count, np.random.choice(range(4), size=(count,), replace=False)
-    
+
+
 def code_quadrant(rgb: NDArray, code: reader.Code) -> tuple[int, NDArray]:
     corners = code.corners().numpy()
     minx, miny = np.min(corners, axis=0)
