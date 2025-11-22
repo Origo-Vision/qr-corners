@@ -102,7 +102,7 @@ def train(options: argparse.Namespace) -> None:
             accum_train_loss += loss.item()
 
         avg_train_loss = accum_train_loss / num_train_batches
-        print(f"\r  avg loss={avg_train_loss:.5f}")
+        print(f"\r  avg loss={avg_train_loss:.7f}")
 
         # Validation.
         print("Validation ...")
@@ -129,7 +129,7 @@ def train(options: argparse.Namespace) -> None:
             avg_valid_loss = accum_valid_loss / num_valid_batches
             avg_valid_accuracy = accum_valid_accuracy / num_valid_batches
             print(
-                f"\r  avg loss={avg_valid_loss:.5f}, avg accuracy={avg_valid_accuracy:.2f}"
+                f"\r  avg loss={avg_valid_loss:.7f}, avg accuracy={avg_valid_accuracy:.2f}"
             )
 
         # Write stats.
