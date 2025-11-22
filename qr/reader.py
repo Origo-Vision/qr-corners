@@ -104,7 +104,9 @@ def mean_code_accuracy(pred: list[list[Code]], target: list[list[Code]]) -> floa
             min_error = 100.0
             for p in pbatch:
                 for t in tbatch:
-                    error = util.mean_point_accuracy(p.points, t.points).item()
+                    diff = p.points - t.points
+                    norm = torch.sum(diff**2, dim=-1) ** (1 / 2)
+                    error = torch.mean(norm).item()
                     if error < min_error:
                         min_error = error
 
