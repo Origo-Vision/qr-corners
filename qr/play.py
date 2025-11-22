@@ -35,8 +35,6 @@ def play(options: argparse.Namespace) -> None:
             )
             heatmap = torch.tensor(heatmap).unsqueeze(0)
 
-            total_samples += 1
-
             Xb = util.rgb_to_tensor(rgb).to(device)
             if not augmentations is None:
                 Xb = augmentations(Xb)
@@ -51,15 +49,18 @@ def play(options: argparse.Namespace) -> None:
             predicted_codes = reader.localize_codes(heatmap=prediction)
 
             accuracy = reader.mean_code_accuracy(predicted_codes, target_codes)
-            if accuracy < 3.0:
-                ok_samples += 1
+            target_codes = target_codes[0]
+            total_samples += len(target_codes)
+            ok_samples += len(target_codes) - int(accuracy // 25)
+
+            score = ok_samples / total_samples if total_samples > 0 else 0
 
             display = render.display_prediction(rgb, target=heatmap, pred=prediction)
 
             cv.imshow("play", cv.cvtColor(display, cv.COLOR_RGB2BGR))
             cv.setWindowTitle(
                 "play",
-                f"Inference time={duration*1000.0:.2f}ms, point accuracy={accuracy:.1f}px, score={ok_samples / total_samples * 100:.1f}%",
+                f"Inference time={duration*1000.0:.2f}ms, point accuracy={accuracy:.1f}px, score={score * 100:.1f}%",
             )
 
             key = cv.waitKey(0)
