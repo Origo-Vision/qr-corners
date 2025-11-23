@@ -306,7 +306,7 @@ def _find_diagonal_pairs(
     points1: torch.Tensor,
     indices2: list[int],
     points2: torch.Tensor,
-    error: float = 3.0,
+    error: float = 4.5**1/2,
 ) -> list[tuple[int, int]]:
     """
     Helper function to find diagonal pairs of corners on each side of the center.
