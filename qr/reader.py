@@ -48,10 +48,16 @@ class Code:
         Find a homograpy from the points to the given (square) image size.
         """
         dst_corners = np.array(
-            [[0.0, 0.0], [size - 1, 0.0], [0.0, size - 1], [size - 1, size - 1]]
+            [
+                [0.0, 0.0],
+                [size - 1, 0.0],
+                [0.0, size - 1],
+                [size - 1, size - 1],
+                [size / 2, size / 2],
+            ]
         )
 
-        H, _ = cv.findHomography(self.corners().numpy(), dst_corners)
+        H, _ = cv.findHomography(self.points.numpy(), dst_corners)
 
         return H
 
@@ -306,7 +312,7 @@ def _find_diagonal_pairs(
     points1: torch.Tensor,
     indices2: list[int],
     points2: torch.Tensor,
-    error: float = 4.5**1/2,
+    error: float = 4.5**1 / 2,
 ) -> list[tuple[int, int]]:
     """
     Helper function to find diagonal pairs of corners on each side of the center.
