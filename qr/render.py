@@ -3,12 +3,14 @@ import math
 import cv2 as cv
 import numpy as np
 from numpy.typing import NDArray
+import torch
 from qrcode import QRCode
 
+import reader
 import util
 
 
-def make_random_sample(sigma: float) -> tuple[NDArray, NDArray, NDArray]:
+def make_random_sample(sigma: float) -> tuple[NDArray, NDArray]:
     """
     Generate a random sample with a QR code projected on a random background.
 
@@ -16,7 +18,7 @@ def make_random_sample(sigma: float) -> tuple[NDArray, NDArray, NDArray]:
         sigma: Standard deviation for heatmap generation.
 
     Returns:
-        Tuple with RGB image, five channel heatmap and points for the corners and center.
+        Tuple with RGB image and a five channel heatmap.
     """
     # Make QR.
     qr_code = make_qr_code(random_string(10))
@@ -49,10 +51,10 @@ def make_random_sample(sigma: float) -> tuple[NDArray, NDArray, NDArray]:
         y, x = np.ogrid[:image_size, :image_size]
         heatmap[i] = np.exp(-((x - cx) ** 2 + (y - cy) ** 2) / (2 * sigma**2))
 
-    return image, heatmap, dst_points
+    return image, heatmap
 
 
-def make_random_multisample(sigma: float) -> tuple[NDArray, NDArray, NDArray]:
+def make_random_multisample(sigma: float) -> tuple[NDArray, NDArray]:
     """
     Generate a random multi sample with one or several QR codes projected on a random background.
 
@@ -60,14 +62,14 @@ def make_random_multisample(sigma: float) -> tuple[NDArray, NDArray, NDArray]:
         sigma: Standard deviation for heatmap generation.
 
     Returns:
-        Tuple with RGB image, five channel heatmap and points for the corners and center.
+        Tuple with RGB image and a five channel heatmap.
     """
     count, layout = multicode_layout()
 
     # If the count is zero, the sample is more or less equal to the single sample.
     if count == 0:
-        rgb, heatmap, points = make_random_sample(sigma=sigma)
-        return rgb, heatmap, np.atleast_3d(points).transpose(2, 0, 1)
+        rgb, heatmap = make_random_sample(sigma=sigma)
+        return rgb, heatmap
 
     # Make background image.
     image_size = 256
@@ -120,96 +122,62 @@ def make_random_multisample(sigma: float) -> tuple[NDArray, NDArray, NDArray]:
 
         points.append(dst_points)
 
-    points = np.array(points)
-
-    return image, heatmap, points
+    return image, heatmap
 
 
-def display_sample(image: NDArray, heatmap: NDArray, points: NDArray) -> NDArray:
+def display_sample(image: torch.Tensor, heatmap: torch.Tensor) -> NDArray:
     """
     Make a sample triplet displayable.
 
     Parameters:
-        image: The image to decode.
-        heatmap: The heatmap channels.
-        points: The corner and center points for the code in the image.
+        image: The image to decode (torch.Tensor).
+        heatmap: The heatmap channels (torch.Tensor).
 
     Returns:
-        An RGB image for display.
+        An RGB image for display (NDArray).
     """
-    hm = heatmap_to_rgb(heatmap)
+    rgb = (image.permute(1, 2, 0).numpy() * 255.0).astype(np.uint8)
+    hm = heatmap_to_rgb(heatmap.numpy())
 
-    dst = make_corner_points(image.shape[0])
-    H, _ = cv.findHomography(points[:4], dst)
-    code = warpCode(image, H)
+    # Expect to find a single code for samples.
+    [[code]] = reader.localize_codes(heatmap.unsqueeze(0))
 
-    return np.hstack((image, hm, code))
+    return np.hstack((rgb, hm, code.straight(rgb)))
 
 
-def display_multisample(image: NDArray, heatmap: NDArray, points: NDArray) -> NDArray:
+def display_multisample(image: torch.Tensor, heatmap: torch.Tensor) -> NDArray:
     """
     Make a multi sample displayable.
 
     Parameters:
-        image: The image to decode.
-        heatmap: The heatmap channels.
-        points: The corner and center points for the code in the image.
+        image: The image to decode (torch.Tensor).
+        heatmap: The heatmap channels (torch.Tensor).
 
     Returns:
-        An RGB image for display.
+        An RGB image for display (NDArray).
     """
-    hm = heatmap_to_rgb(heatmap)
+    rgb = (image.permute(1, 2, 0).numpy() * 255.0).astype(np.uint8)
+    hm = heatmap_to_rgb(heatmap.numpy())
 
-    gray = np.ones_like(image) * 128
+    gray = np.ones_like(rgb) * 128
     ul = gray
     ur = gray
     ll = gray
     lr = gray
 
-    image_size = image.shape[0]
-    dst = make_corner_points(image_size)
-
-    quad_size = image_size >> 1
-    for point in points:
-        # Estimate quadrant.
-        minx, miny = np.min(point[:4], axis=0)
-        maxx, maxy = np.max(point[:4], axis=0)
-
-        H, _ = cv.findHomography(point[:4], dst)
-        code = warpCode(image, H)
-
-        if (
-            minx < quad_size
-            and maxx < quad_size
-            and miny < quad_size
-            and maxy < quad_size
-        ):
-            ul = code
-        elif (
-            minx >= quad_size
-            and maxx >= quad_size
-            and miny < quad_size
-            and maxy < quad_size
-        ):
-            ur = code
-        elif (
-            minx < quad_size
-            and maxx < quad_size
-            and miny >= quad_size
-            and maxy >= quad_size
-        ):
-            ll = code
-        elif (
-            minx >= quad_size
-            and maxx >= quad_size
-            and miny >= quad_size
-            and maxy >= quad_size
-        ):
-            lr = code
+    [codes] = reader.localize_codes(heatmap.unsqueeze(0))
+    for code in codes:
+        quad, straight = code_quadrant(rgb, code)
+        if quad == 2:
+            ur = straight
+        elif quad == 3:
+            ll = straight
+        elif quad == 4:
+            lr = straight
         else:
-            ul = code
+            ul = straight
 
-    row1 = np.hstack((image, hm))
+    row1 = np.hstack((rgb, hm))
     row2 = np.hstack((ul, ur))
     row3 = np.hstack((ll, lr))
 
@@ -217,93 +185,57 @@ def display_multisample(image: NDArray, heatmap: NDArray, points: NDArray) -> ND
 
 
 def display_prediction(
-    image: NDArray,
-    heatmap: NDArray,
-    pts_true: NDArray,
-    pts_pred: NDArray,
-    est_center: NDArray | None,
+    rgb: NDArray, target: torch.Tensor, pred: torch.Tensor
 ) -> NDArray:
     """
     Make a prediction displayable.
 
     Parameters:
         image: The image to decode.
-        heatmap: The heatmap channels.
-        pts_true: The true corner points for the code in the image.
-        pts_pred: The predicted corner points for the code in the image.
-        est_center: Estimated center point, if valid.
+        target: The target heatmap.
+        pred: The prediction heatmap.
 
     Returns:
         An RGB image for display.
     """
-    assert pts_true.shape == (5, 2)
-    assert pts_true.shape == pts_pred.shape
+    hm = heatmap_to_rgb(pred.squeeze().numpy())
 
-    # Warped code.
-    dst = make_corner_points(image.shape[0])
-    H, _ = cv.findHomography(pts_pred[:4], dst)
-    code = warpCode(image, H)
+    gray = np.ones_like(rgb) * 128
+    ul = gray
+    ur = gray
+    ll = gray
+    lr = gray
 
-    # Image with true and predicted corners points.
+    [target_codes] = reader.localize_codes(target)
+    [predicted_codes] = reader.localize_codes(pred)
+
+    for code in predicted_codes:
+        quad, straight = code_quadrant(rgb, code)
+        if quad == 2:
+            ur = straight
+        elif quad == 3:
+            ll = straight
+        elif quad == 4:
+            lr = straight
+        else:
+            ul = straight
+
     colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 255), (255, 255, 0)]
-    for i in range(5):
-        pt_true = tuple(map(int, pts_true[i]))
-        pt_pred = tuple(map(int, pts_pred[i]))
-        cv.drawMarker(image, pt_true, colors[i], thickness=2)
-        cv.drawMarker(
-            image, pt_pred, colors[i], markerType=cv.MARKER_TILTED_CROSS, thickness=2
-        )
+    for code in target_codes:
+        for i in range(5):
+            point = tuple(map(int, code.points[i]))
+            cv.drawMarker(rgb, point, colors[i], thickness=2)
 
-        if i == 4 and not est_center is None:
-            est_center = tuple(map(int, est_center))
-            cv.circle(image, est_center, radius=5, color=(0, 255, 0), thickness=2)
+    for code in predicted_codes:
+        for i in range(5):
+            point = tuple(map(int, code.points[i]))
+            cv.circle(rgb, point, radius=5, color=colors[i], thickness=2)
 
-    # The 2x3 mosaic.
-    h, w = image.shape[:2]
-    display = np.zeros((h * 2, w * 3, 3), np.uint8)
+    row1 = np.hstack((rgb, hm))
+    row2 = np.hstack((ul, ur))
+    row3 = np.hstack((ll, lr))
 
-    # Fill in the parts.
-    display[0:h, 0:w, :] = image[:, :, :]
-    display[0:h, w : w * 2, 0] = (heatmap[0, :, :] * 255.0).astype(np.uint8)
-    display[0:h, w * 2 : w * 3, 1] = (heatmap[1, :, :] * 255.0).astype(np.uint8)
-
-    display[h : h * 2, 0:w, :] = (
-        code[:, :, :] if not est_center is None else np.ones_like(code) * 128
-    )
-    display[h : h * 2, w : w * 2, 2] = (heatmap[2, :, :] * 255.0).astype(np.uint8)
-    display[h : h * 2, w * 2 : w * 3, 0] = (heatmap[3, :, :] * 255.0).astype(np.uint8)
-    display[h : h * 2, w * 2 : w * 3, 1] = (heatmap[3, :, :] * 255.0).astype(np.uint8)
-    display[h : h * 2, w * 2 : w * 3, 2] = (heatmap[3, :, :] * 255.0).astype(np.uint8)
-
-    # Draw a thin gray line to mark the shape of the warped code in the heatmaps.
-    for y in range(2):
-        for x in range(1, 3):
-            cv.line(
-                display[y * h : (y + 1) * h, x * w : (x + 1) * w, :],
-                tuple(map(int, pts_true[0])),
-                tuple(map(int, pts_true[1])),
-                (127, 127, 127),
-            )
-            cv.line(
-                display[y * h : (y + 1) * h, x * w : (x + 1) * w, :],
-                tuple(map(int, pts_true[1])),
-                tuple(map(int, pts_true[3])),
-                (127, 127, 127),
-            )
-            cv.line(
-                display[y * h : (y + 1) * h, x * w : (x + 1) * w, :],
-                tuple(map(int, pts_true[3])),
-                tuple(map(int, pts_true[2])),
-                (127, 127, 127),
-            )
-            cv.line(
-                display[y * h : (y + 1) * h, x * w : (x + 1) * w, :],
-                tuple(map(int, pts_true[2])),
-                tuple(map(int, pts_true[0])),
-                (127, 127, 127),
-            )
-
-    return display
+    return np.vstack((row1, row2, row3))
 
 
 def heatmap_to_rgb(heatmap: NDArray) -> NDArray:
@@ -474,31 +406,46 @@ def bounding_box(pts: NDArray) -> tuple[NDArray, NDArray]:
     return np.min(pts, axis=0), np.max(pts, axis=0)
 
 
-def warpCode(image: NDArray, H: NDArray) -> NDArray:
-    """
-    Warp and binarize a detected code.
-
-    Parameters:
-        image: Input RGB image.
-        H: Homography.
-
-    Returns:
-        The warped code.
-    """
-    assert len(image.shape) == 3
-    assert image.shape[2] == 3
-    assert H.shape == (3, 3)
-
-    gray = cv.cvtColor(image, cv.COLOR_RGB2GRAY)
-    gray = cv.warpPerspective(gray, H, dsize=image.shape[:2])
-    cv.threshold(gray, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU, dst=gray)
-    return cv.cvtColor(gray, cv.COLOR_GRAY2RGB)
-
-
 def multicode_layout() -> tuple[int, NDArray]:
-    count = np.random.randint(0, 4)
+    count = np.random.randint(0, 5)
 
     if count == 0:
         return count, np.array([], dtype=int)
     else:
         return count, np.random.choice(range(4), size=(count,), replace=False)
+
+
+def code_quadrant(rgb: NDArray, code: reader.Code) -> tuple[int, NDArray]:
+    corners = code.corners().numpy()
+    minx, miny = np.min(corners, axis=0)
+    maxx, maxy = np.max(corners, axis=0)
+
+    quad = 1
+    straight = code.straight(rgb)
+
+    quad_size = rgb.shape[0] >> 1
+    if minx < quad_size and maxx < quad_size and miny < quad_size and maxy < quad_size:
+        quad = 1
+    elif (
+        minx >= quad_size
+        and maxx >= quad_size
+        and miny < quad_size
+        and maxy < quad_size
+    ):
+        quad = 2
+    elif (
+        minx < quad_size
+        and maxx < quad_size
+        and miny >= quad_size
+        and maxy >= quad_size
+    ):
+        quad = 3
+    elif (
+        minx >= quad_size
+        and maxx >= quad_size
+        and miny >= quad_size
+        and maxy >= quad_size
+    ):
+        quad = 4
+
+    return quad, straight

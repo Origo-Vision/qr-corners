@@ -67,128 +67,18 @@ def augmentations() -> Compose:
     )
 
 
-def check_predicted_points(points: torch.Tensor) -> tuple[torch.Tensor, float] | None:
-    assert points.shape == (5, 2)
-
-    def hline(pt1: torch.Tensor, pt2: torch.Tensor) -> torch.Tensor:
-        x1, y1 = pt1
-        x2, y2 = pt2
-
-        a = y1 - y2
-        b = x2 - x1
-        c = x1 * y2 - x2 * y1
-
-        return torch.tensor([a, b, c])
-
-    def hcross(l1: torch.Tensor, l2: torch.Tensor) -> torch.Tensor | None:
-        x, y, w = torch.linalg.cross(l1, l2)
-
-        return torch.tensor([x / w, y / w]) if w > 1e-5 else None
-
-    # LR UL
-    l1 = hline(points[3], points[0])
-
-    # LL UR
-    l2 = hline(points[2], points[1])
-
-    center = hcross(l1, l2)
-    if not center is None:
-        return center, torch.linalg.norm(points[4] - center).item()
-    else:
-        # Parallel lines happened.
-        return None
-
-
-def batch_heatmap_points(heatmap: torch.Tensor) -> torch.Tensor:
+def rgb_to_tensor(rgb: NDArray) -> torch.Tensor:
     """
-    Pixel precision max location for batched heatmaps.
+    Convert a RGB image (H, W, C) to tensor (1, C, H, W).
 
     Parameters:
-        heatmap: The heatmap.
+        rgb: The image.
 
     Returns:
-        The points matrix (B, 5, 2).
+        The tensor.
     """
-    assert len(heatmap.shape) == 4
-
-    points = []
-    for i in range(heatmap.shape[0]):
-        points.append(heatmap_points(heatmap[i]).unsqueeze(0))
-
-    return torch.cat(points, 0).to(heatmap.device)
-
-
-def heatmap_points(heatmap: torch.Tensor) -> torch.Tensor:
-    """
-    Pixel precision max locations for the five channel heatmap.
-
-    Parameters:
-        heatmap: The heatmap.
-
-    Returns:
-        The points matrix (5, 2).
-    """
-    assert len(heatmap.shape) == 3
-    assert heatmap.shape[0] == 5
-
-    points = torch.zeros((5, 2), dtype=torch.float32).to(heatmap.device)
-    for i in range(5):
-        yx = torch.nonzero(heatmap[i] == torch.max(heatmap[i]))[0]
-        points[i] = yx.flip(0)
-
-    return subpixel_points(heatmap, points)
-
-
-def subpixel_points(heatmap: torch.Tensor, points: torch.Tensor) -> torch.Tensor:
-    """
-    Subpixel precision max locations for the five channel heatmap.
-
-    Parameters:
-        heatmap: The heatmap.
-        points: The discrete max locations.
-
-    Returns:
-        The points matrix (5, 2).
-    """
-    assert len(heatmap.shape) == 3
-    assert heatmap.shape[0] == 5
-    assert points.shape == (5, 2)
-
-    h, w = heatmap.shape[1:]
-    eps = 1e-6
-    for i in range(5):
-        x, y = map(int, points[i])
-
-        if x > 0 and y > 0 and x < w - 1 and y < h - 1:
-            mid = heatmap[i, y, x] + eps
-            left = heatmap[i, y, x - 1]
-            right = heatmap[i, y, x + 1]
-            up = heatmap[i, y - 1, x]
-            down = heatmap[i, y + 1, x]
-
-            x_offset = (right / mid - left / mid) / 2.0
-            y_offset = (down / mid - up / mid) / 2.0
-
-            points[i, 0] += x_offset
-            points[i, 1] += y_offset
-
-    return points
-
-
-def mean_point_accuracy(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-    """
-    Calculate the mean L2 accuracy between predicted points and ground truth points.
-
-    Parameters:
-        pred: The predicted points.
-        target: The ground truth points.
-
-    Returns:
-        The accuracy.
-    """
-    diff = pred - target
-    norm = torch.sum(diff**2, dim=-1) ** (1 / 2)
-    return torch.mean(norm)
+    Xb = torch.tensor(rgb.transpose(2, 0, 1), dtype=torch.float32) / 255.0
+    return Xb.unsqueeze(0)
 
 
 def transform_point(H: NDArray, point: ArrayLike) -> NDArray:

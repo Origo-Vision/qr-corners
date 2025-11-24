@@ -3,15 +3,15 @@ import pathlib
 import time
 
 import cv2 as cv
-import numpy as np
 import torch
 
 import models
+import reader
 import render
 import util
 
 
-def play(options: argparse.Namespace, center_error_threshold: float = 5.0) -> None:
+def play(options: argparse.Namespace) -> None:
     device = util.find_device(options.force_cpu)
     print(f"Device={device}")
 
@@ -28,56 +28,39 @@ def play(options: argparse.Namespace, center_error_threshold: float = 5.0) -> No
     cv.namedWindow("play")
     with torch.no_grad():
         while True:
-            total_samples += 1
+            rgb, heatmap = (
+                render.make_random_multisample(3.0)
+                if options.multi
+                else render.make_random_sample(3.0)
+            )
+            heatmap = torch.tensor(heatmap).unsqueeze(0)
 
-            rgb, _, Ptrue = render.make_random_sample(3.0)
-
-            Xb = torch.tensor(rgb.transpose(2, 0, 1), dtype=torch.float32) / 255.0
-            Xb = Xb.unsqueeze(0).to(device)
+            Xb = util.rgb_to_tensor(rgb).to(device)
             if not augmentations is None:
                 Xb = augmentations(Xb)
 
-            start = time.time()
-            Ypred = model(Xb)
-            duration = time.time() - start
+            start = time.monotonic()
+            Yb = model(Xb)
+            duration = time.monotonic() - start
 
-            Ypred = Ypred.squeeze(0).cpu()
-            Ppred = util.heatmap_points(Ypred)
-            Ypred = Ypred.numpy()
+            prediction = Yb.cpu()
 
-            accuracy = util.mean_point_accuracy(Ppred, torch.tensor(Ptrue)).item()
+            target_codes = reader.localize_codes(heatmap=heatmap)
+            predicted_codes = reader.localize_codes(heatmap=prediction)
 
-            center, center_error = None, None
-            center_accuracy = util.check_predicted_points(Ppred)
-            if not center_accuracy is None:
-                center, center_error = center_accuracy
-                print(f"center error={center_error:.2f}px")
+            accuracy = reader.mean_code_accuracy(predicted_codes, target_codes)
+            target_codes = target_codes[0]
+            total_samples += len(target_codes)
+            ok_samples += len(target_codes) - int(accuracy // 25)
 
-                if center_error < center_error_threshold:
-                    ok_samples += 1
-                else:
-                    center = None
+            score = ok_samples / total_samples if total_samples > 0 else 0
 
-            print(f"Ptrue=\n{Ptrue}")
-            print(f"Ppred=\n{Ppred}")
-
-            rgb = (
-                (Xb.cpu().squeeze(0).permute(1, 2, 0).numpy() * 255.0)
-                .astype(np.uint8)
-                .copy()
-            )
-            display = render.display_prediction(
-                rgb,
-                Ypred,
-                Ptrue,
-                Ppred.numpy(),
-                center.numpy() if not center is None else None,
-            )
+            display = render.display_prediction(rgb, target=heatmap, pred=prediction)
 
             cv.imshow("play", cv.cvtColor(display, cv.COLOR_RGB2BGR))
             cv.setWindowTitle(
                 "play",
-                f"Inference time={duration*1000.0:.2f}ms, point accuracy={accuracy:.1f}px, score={ok_samples / total_samples * 100:.1f}%",
+                f"Inference time={duration*1000.0:.2f}ms, point accuracy={accuracy:.1f}px, score={score * 100:.1f}%",
             )
 
             key = cv.waitKey(0)
@@ -104,6 +87,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--augment", action="store_true", help="Apply augmentations in play"
     )
+    parser.add_argument("--multi", action="store_true", help="Generate multi-samples")
     options = parser.parse_args()
 
     util.set_seed(options.seed)
