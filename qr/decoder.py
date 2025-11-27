@@ -52,7 +52,7 @@ def estimate_seq_module_size(seq: NDArray) -> int | None:
     Estimate the module size along a vector.
 
     Parameters:
-        seq: The sequence of pixels.
+        seq: The sequence of pixels (assuming binarized pixels).
 
     Returns:
         The estimated module size, or None.
@@ -79,16 +79,46 @@ def estimate_seq_module_size(seq: NDArray) -> int | None:
         return None
 
 
+def estimate_module_size(code: NDArray, samples: int = 10) -> int | None:
+    """
+    Estimate the module size from sampling horizontally and vertically in the image.
+
+    Parameters:
+        code: Rectified and binariezed code image.
+        samples: The number of samples to be taken in each dimension.
+
+    Returns:
+        The estimated module size, or None.
+    """
+    # Assume that h and w are equal, or at least very similar.
+    h, w = code.shape
+
+    module_sizes = []
+    for i in np.linspace(min(h, w) * 0.1, min(h, w) * 0.9, samples).astype(int):
+        horizontal_estimate = estimate_seq_module_size(code[i, :])
+        vertical_estimate = estimate_seq_module_size(code[:, i])
+
+        if not horizontal_estimate is None:
+            module_sizes.append(horizontal_estimate)
+
+        if not vertical_estimate is None:
+            module_sizes.append(vertical_estimate)
+
+    return int(np.median(module_sizes)) if module_sizes != [] else None
+
+
 def main(options: argparse.Namespace) -> None:
     gray = gen_qr(
         module_size=options.module_size, version=options.version, text=options.text
     )
 
-    h, w = gray.shape
-    m = estimate_seq_module_size(gray[h // 2, :])
-    print(m)
+    result = estimate_module_size(gray)
+    if not result is None:
+        module_size = result
 
-    return
+        print(f"module size={module_size}px")
+
+    # return
 
     plt.figure(figsize=(12, 8))
     plt.imshow(gray, cmap="gray")
