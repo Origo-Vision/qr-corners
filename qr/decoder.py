@@ -84,7 +84,7 @@ def estimate_module_size(code: NDArray, samples: int = 10) -> int | None:
     Estimate the module size from sampling horizontally and vertically in the image.
 
     Parameters:
-        code: Rectified and binariezed code image.
+        code: Rectified and binarized code image.
         samples: The number of samples to be taken in each dimension.
 
     Returns:
@@ -107,21 +107,50 @@ def estimate_module_size(code: NDArray, samples: int = 10) -> int | None:
     return int(np.median(module_sizes)) if module_sizes != [] else None
 
 
+def estimate_num_modules(code: NDArray, module_size: int) -> tuple[int, int]:
+    """
+    Estimate the number of modules in a code, and the code's version.
+
+    Parameters:
+        code: Rectified and binarized code image.
+        module_size: The module size.
+
+    Returns:
+        Tuple (number of modules, version).
+    """
+    # Assume that h and w are equal, or at least very similar.
+    h, w = code.shape
+
+    N = min(h, w) / module_size
+
+    # k = v - 1
+    # N = 21 + 4k
+    # k = (N - 21) / 4, implying that (N - 21) % 4 == 0.
+    # Round to the best fit, and recalculate N.
+    k = round((N - 21) / 4)
+    N = 21 + 4 * k
+
+    return N, k + 1
+
+
 def main(options: argparse.Namespace) -> None:
-    gray = gen_qr(
+    code = gen_qr(
         module_size=options.module_size, version=options.version, text=options.text
     )
 
-    result = estimate_module_size(gray)
+    result = estimate_module_size(code)
     if not result is None:
         module_size = result
+        num_modules, version = estimate_num_modules(code, module_size)
 
-        print(f"module size={module_size}px")
+        print(
+            f"module size={module_size}px, num modules={num_modules}, version={version}"
+        )
 
     # return
 
     plt.figure(figsize=(12, 8))
-    plt.imshow(gray, cmap="gray")
+    plt.imshow(code, cmap="gray")
     plt.axis("off")
     plt.show()
 
