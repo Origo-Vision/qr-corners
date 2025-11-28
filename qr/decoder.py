@@ -84,14 +84,16 @@ def estimate_module_size(code: NDArray, samples: int = 10) -> int | None:
     Estimate the module size from sampling horizontally and vertically in the image.
 
     Parameters:
-        code: Rectified and binarized code image.
+        code: Rectified, square and binarized code image.
         samples: The number of samples to be taken in each dimension.
 
     Returns:
         The estimated module size, or None.
     """
-    # Assume that h and w are equal, or at least very similar.
     h, w = code.shape
+
+    if h != w:
+        return None
 
     module_sizes = []
     for i in np.linspace(min(h, w) * 0.1, min(h, w) * 0.9, samples).astype(int):
@@ -112,7 +114,7 @@ def estimate_num_modules(code: NDArray, module_size: int) -> tuple[int, int]:
     Estimate the number of modules in a code, and the code's version.
 
     Parameters:
-        code: Rectified and binarized code image.
+        code: Rectified, square and binarized code image.
         module_size: The module size.
 
     Returns:
@@ -133,25 +135,52 @@ def estimate_num_modules(code: NDArray, module_size: int) -> tuple[int, int]:
     return N, k + 1
 
 
+def rasterize_code(code: NDArray) -> NDArray | None:
+    """
+    Rasterize a code into a NxN raster, where N is the number of modules.
+
+    Parameters:
+        code: Rectified, square and binarized code image.
+
+    Returns:
+        Binary image size NxN, or None.
+    """
+    h, w = code.shape
+
+    module_size = estimate_module_size(code)
+    if module_size is None:
+        return None
+
+    num_modules, version = estimate_num_modules(code, module_size)
+
+    print(f"module size={module_size}px, num modules={num_modules}, version={version}")
+
+    raster = np.zeros((num_modules, num_modules), dtype=np.uint8)
+
+    return raster
+
+
 def main(options: argparse.Namespace) -> None:
     code = gen_qr(
         module_size=options.module_size, version=options.version, text=options.text
     )
 
-    result = estimate_module_size(code)
-    if not result is None:
-        module_size = result
-        num_modules, version = estimate_num_modules(code, module_size)
-
-        print(
-            f"module size={module_size}px, num modules={num_modules}, version={version}"
-        )
-
-    # return
+    raster = rasterize_code(code)
+    if raster is None:
+        return
 
     plt.figure(figsize=(12, 8))
+
+    plt.subplot(1, 2, 1)
     plt.imshow(code, cmap="gray")
+    plt.title("binarized code")
     plt.axis("off")
+
+    plt.subplot(1, 2, 2)
+    plt.imshow(raster, cmap="gray")
+    plt.title("rasterized code")
+    plt.axis("off")
+
     plt.show()
 
 
