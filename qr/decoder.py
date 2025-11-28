@@ -91,9 +91,7 @@ def estimate_module_size(code: NDArray, samples: int = 10) -> int | None:
         The estimated module size, or None.
     """
     h, w = code.shape
-
-    if h != w:
-        return None
+    assert h == w
 
     module_sizes = []
     for i in np.linspace(min(h, w) * 0.1, min(h, w) * 0.9, samples).astype(int):
@@ -120,8 +118,8 @@ def estimate_num_modules(code: NDArray, module_size: int) -> tuple[int, int]:
     Returns:
         Tuple (number of modules, version).
     """
-    # Assume that h and w are equal, or at least very similar.
     h, w = code.shape
+    assert h == w
 
     N = min(h, w) / module_size
 
@@ -146,6 +144,9 @@ def rasterize_code(code: NDArray) -> NDArray | None:
         Binary image size NxN, or None.
     """
     h, w = code.shape
+    if h != w:
+        print("Code is not square")
+        return None
 
     module_size = estimate_module_size(code)
     if module_size is None:
