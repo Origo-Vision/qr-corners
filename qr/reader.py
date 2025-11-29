@@ -72,7 +72,7 @@ class Code:
         code = cv.warpPerspective(code, H, dsize=(rect_size, rect_size))
         code = decoder.preprocess_code(code)
 
-        raster = decoder.rasterize_code(code)
+        raster = decoder.qr_matrix(code, invert=False)
         raster = cv.resize(raster, rgb.shape[:2], interpolation=cv.INTER_NEAREST)
         cv.threshold(raster, 0, 255, cv.THRESH_OTSU, dst=raster)
 

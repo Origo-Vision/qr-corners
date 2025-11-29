@@ -155,7 +155,7 @@ def estimate_num_modules(code: NDArray, module_size: float) -> tuple[int, int]:
     return N, k + 1
 
 
-def rasterize_code(code: NDArray) -> NDArray | None:
+def qr_matrix(code: NDArray, invert: bool = True) -> NDArray | None:
     """
     Sample a code into a NxN raster, where N is the number of modules.
 
@@ -186,7 +186,8 @@ def rasterize_code(code: NDArray) -> NDArray | None:
             px = (x + 0.5) * module_size
             py = (y + 0.5) * module_size
             patch = cv.getRectSubPix(code, patch_size, (px, py))
-            raster[y, x] = np.median(patch)
+            value = np.median(patch) > 128
+            raster[y, x] = 1 - value if invert else value
 
     return raster
 
@@ -200,9 +201,9 @@ def main(options: argparse.Namespace) -> None:
         else read_qr(options.file)
     )
 
-    raster = rasterize_code(code)
+    raster = qr_matrix(code, invert=False)
     if raster is None:
-        print("Failed to sample code")
+        print("Failed to construct QR matrix")
         return
 
     plt.figure(figsize=(12, 8))
@@ -214,7 +215,7 @@ def main(options: argparse.Namespace) -> None:
 
     plt.subplot(1, 2, 2)
     plt.imshow(raster, cmap="gray")
-    plt.title("rasterized code")
+    plt.title("QR matrix")
     plt.axis("off")
 
     plt.show()
