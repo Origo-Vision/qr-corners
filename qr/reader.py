@@ -70,7 +70,7 @@ class Code:
 
         code = cv.cvtColor(rgb, cv.COLOR_RGB2GRAY)
         code = cv.warpPerspective(code, H, dsize=(rect_size, rect_size))
-        cv.threshold(code, 0, 255, cv.THRESH_OTSU, dst=code)
+        code = decoder.preprocess_code(code)
 
         module_size = decoder.estimate_module_size(code)
         assert not module_size is None

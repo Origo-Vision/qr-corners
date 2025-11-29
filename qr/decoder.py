@@ -16,9 +16,7 @@ def read_qr(path: pathlib.Path) -> NDArray:
 
     gray = cv.resize(gray, (min(h, w), min(h, w)))
 
-    cv.threshold(gray, 0, 255, cv.THRESH_OTSU, dst=gray)
-
-    return gray
+    return preprocess_code(gray)
 
 
 def gen_qr(module_size: int, version: int, text: str) -> NDArray:
@@ -31,6 +29,16 @@ def gen_qr(module_size: int, version: int, text: str) -> NDArray:
     image = qr.make_image(fill_color="black", back_color="white")
 
     return np.array(image, dtype=np.uint8) * 255
+
+
+def preprocess_code(code: NDArray) -> NDArray:
+    blur = cv.GaussianBlur(code, (5, 5), 0)
+    cv.adaptiveThreshold(
+        blur, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, blockSize=21, C=2, dst=blur
+    )
+
+    kernel = np.ones((3, 3), np.uint8)
+    return cv.morphologyEx(blur, cv.MORPH_OPEN, kernel)
 
 
 def run_lengths(seq: NDArray) -> set[int]:
