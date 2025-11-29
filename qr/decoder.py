@@ -1,6 +1,7 @@
 import argparse
 from collections import Counter
 import itertools
+import math
 import pathlib
 
 import cv2 as cv
@@ -128,7 +129,7 @@ def estimate_module_size(code: NDArray, samples: int = 10) -> int | None:
     return int(np.median(module_sizes)) if module_sizes != [] else None
 
 
-def estimate_num_modules(code: NDArray, module_size: int) -> tuple[int, int]:
+def estimate_num_modules(code: NDArray, module_size: float) -> tuple[int, int]:
     """
     Estimate the number of modules in a code, and the code's version.
 
@@ -142,7 +143,7 @@ def estimate_num_modules(code: NDArray, module_size: int) -> tuple[int, int]:
     h, w = code.shape
     assert h == w
 
-    N = min(h, w) / module_size
+    N = w / module_size
 
     # k = v - 1
     # N = 21 + 4k
@@ -154,7 +155,7 @@ def estimate_num_modules(code: NDArray, module_size: int) -> tuple[int, int]:
     return N, k + 1
 
 
-def rasterize_code(code: NDArray, num_modules: int, module_size: int) -> NDArray | None:
+def rasterize_code(code: NDArray, num_modules: int, module_size: float) -> NDArray | None:
     """
     Sample a code into a NxN raster, where N is the number of modules.
 
@@ -171,16 +172,15 @@ def rasterize_code(code: NDArray, num_modules: int, module_size: int) -> NDArray
         print("Code is not square")
         return None
 
-    if h != num_modules * module_size:
-        print("Code is not the expected size")
-        return None
-
     raster = np.zeros((num_modules, num_modules), dtype=np.uint8)
+    size = max(1, math.ceil(module_size))
+    patch_size = (size, size)
+
     for y in range(num_modules):
         for x in range(num_modules):
-            y0 = y * module_size
-            x0 = x * module_size
-            patch = code[y0 : y0 + module_size, x0 : x0 + module_size]
+            px = (x + 0.5) * module_size
+            py = (y + 0.5) * module_size
+            patch = cv.getRectSubPix(code, patch_size, (px, py))
             raster[y, x] = np.median(patch)
 
     return raster
@@ -205,10 +205,8 @@ def main(options: argparse.Namespace) -> None:
         f"Estimated module size={module_size}, num modules={num_modules}, version={version}"
     )
 
-    expected_size = (module_size * num_modules, module_size * num_modules)
-    if expected_size != code.shape:
-        print(f"Resize the code from {code.shape} => {expected_size}")
-        code = cv.resize(code, expected_size, interpolation=cv.INTER_NEAREST)
+    h, w = code.shape
+    module_size = w / num_modules
 
     raster = rasterize_code(code, num_modules=num_modules, module_size=module_size)
     if raster is None:
