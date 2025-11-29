@@ -157,6 +157,12 @@ def rasterize_code(code: NDArray) -> NDArray | None:
     print(f"module size={module_size}px, num modules={num_modules}, version={version}")
 
     raster = np.zeros((num_modules, num_modules), dtype=np.uint8)
+    for y in range(num_modules):
+        for x in range(num_modules):
+            y0 = y * module_size
+            x0 = x * module_size
+            patch = code[y0 : y0 + module_size, x0 : x0 + module_size]
+            raster[y, x] = np.median(patch)
 
     return raster
 
