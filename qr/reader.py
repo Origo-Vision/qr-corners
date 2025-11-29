@@ -79,7 +79,7 @@ class Code:
 
         expected_size = (num_modules * module_size, num_modules * module_size)
         if code.shape != expected_size:
-            code = cv.resize(code, expected_size)
+            code = cv.resize(code, expected_size, interpolation=cv.INTER_NEAREST)
 
         raster = decoder.rasterize_code(code, num_modules=num_modules, module_size=module_size)
         raster = cv.resize(raster, rgb.shape[:2], interpolation=cv.INTER_NEAREST)

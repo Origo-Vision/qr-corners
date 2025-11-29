@@ -200,7 +200,7 @@ def main(options: argparse.Namespace) -> None:
     expected_size = (module_size * num_modules, module_size * num_modules)
     if expected_size != code.shape:
         print(f"Resize the code from {code.shape} => {expected_size}")
-        code = cv.resize(code, expected_size)
+        code = cv.resize(code, expected_size, interpolation=cv.INTER_NEAREST)
 
     raster = rasterize_code(code, num_modules=num_modules, module_size=module_size)
     if raster is None:
