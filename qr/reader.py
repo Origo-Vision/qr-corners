@@ -8,7 +8,7 @@ from numpy.typing import NDArray
 import torch
 import torch.nn.functional as F
 
-import util
+import decoder
 
 
 class Code:
@@ -61,18 +61,31 @@ class Code:
 
         return H
 
-    def straight(self: Code, rgb: NDArray) -> NDArray:
+    def straight(self: Code, rgb: NDArray, rect_size: int = 25 * 4) -> NDArray | None:
         """
-        Return an image with a straight, rectified and slightly
+        Return an image with a straight, rectified and heavily
         preprocessed code.
         """
-        H = self.find_homography(rgb.shape[0])
+        H = self.find_homography(rect_size)
 
-        gray = cv.cvtColor(rgb, cv.COLOR_RGB2GRAY)
-        gray = cv.warpPerspective(gray, H, dsize=rgb.shape[:2])
-        cv.threshold(gray, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU, dst=gray)
+        code = cv.cvtColor(rgb, cv.COLOR_RGB2GRAY)
+        code = cv.warpPerspective(code, H, dsize=(rect_size, rect_size))
+        cv.threshold(code, 0, 255, cv.THRESH_OTSU, dst=code)
 
-        return cv.cvtColor(gray, cv.COLOR_GRAY2RGB)
+        module_size = decoder.estimate_module_size(code)
+        assert not module_size is None
+
+        num_modules, _ = decoder.estimate_num_modules(code, module_size=module_size)
+
+        expected_size = (num_modules * module_size, num_modules * module_size)
+        if code.shape != expected_size:
+            code = cv.resize(code, expected_size)
+
+        raster = decoder.rasterize_code(code, num_modules=num_modules, module_size=module_size)
+        raster = cv.resize(raster, rgb.shape[:2], interpolation=cv.INTER_NEAREST)
+        cv.threshold(raster, 0, 255, cv.THRESH_OTSU, dst=raster)
+
+        return cv.cvtColor(raster, cv.COLOR_GRAY2RGB)
 
     def __repr__(self: Code) -> str:
         return (
