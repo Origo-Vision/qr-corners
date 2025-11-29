@@ -146,7 +146,7 @@ def estimate_num_modules(code: NDArray, module_size: int) -> tuple[int, int]:
     return N, k + 1
 
 
-def rasterize_code(code: NDArray) -> NDArray | None:
+def rasterize_code(code: NDArray, num_modules: int, module_size: int) -> NDArray | None:
     """
     Rasterize a code into a NxN raster, where N is the number of modules.
 
@@ -161,13 +161,9 @@ def rasterize_code(code: NDArray) -> NDArray | None:
         print("Code is not square")
         return None
 
-    module_size = estimate_module_size(code)
-    if module_size is None:
+    if h != num_modules * module_size:
+        print("Code is not the expected size")
         return None
-
-    num_modules, version = estimate_num_modules(code, module_size)
-
-    print(f"module size={module_size}px, num modules={num_modules}, version={version}")
 
     raster = np.zeros((num_modules, num_modules), dtype=np.uint8)
     for y in range(num_modules):
@@ -189,8 +185,24 @@ def main(options: argparse.Namespace) -> None:
         else read_qr(options.file)
     )
 
-    raster = rasterize_code(code)
+    module_size = estimate_module_size(code)
+    if module_size is None:
+        print("Failed to estimate module size")
+        return
+
+    num_modules, version = estimate_num_modules(code, module_size)
+    print(
+        f"Estimated module size={module_size}, num modules={num_modules}, version={version}"
+    )
+
+    expected_size = (module_size * num_modules, module_size * num_modules)
+    if expected_size != code.shape:
+        print(f"Resize the code from {code.shape} => {expected_size}")
+        code = cv.resize(code, expected_size)
+
+    raster = rasterize_code(code, num_modules=num_modules, module_size=module_size)
     if raster is None:
+        print("Failed to rasterize code")
         return
 
     plt.figure(figsize=(12, 8))
