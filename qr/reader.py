@@ -72,16 +72,7 @@ class Code:
         code = cv.warpPerspective(code, H, dsize=(rect_size, rect_size))
         code = decoder.preprocess_code(code)
 
-        module_size = decoder.estimate_module_size(code)
-        assert not module_size is None
-
-        num_modules, _ = decoder.estimate_num_modules(code, module_size=module_size)
-
-        expected_size = (num_modules * module_size, num_modules * module_size)
-        if code.shape != expected_size:
-            code = cv.resize(code, expected_size, interpolation=cv.INTER_NEAREST)
-
-        raster = decoder.rasterize_code(code, num_modules=num_modules, module_size=module_size)
+        raster = decoder.rasterize_code(code)
         raster = cv.resize(raster, rgb.shape[:2], interpolation=cv.INTER_NEAREST)
         cv.threshold(raster, 0, 255, cv.THRESH_OTSU, dst=raster)
 
