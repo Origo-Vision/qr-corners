@@ -148,10 +148,12 @@ def estimate_num_modules(code: NDArray, module_size: int) -> tuple[int, int]:
 
 def rasterize_code(code: NDArray, num_modules: int, module_size: int) -> NDArray | None:
     """
-    Rasterize a code into a NxN raster, where N is the number of modules.
+    Sample a code into a NxN raster, where N is the number of modules.
 
     Parameters:
         code: Rectified, square and binarized code image.
+        num_modules: The number of modules.
+        module_size: The module size.
 
     Returns:
         Binary image size NxN, or None.
@@ -202,7 +204,7 @@ def main(options: argparse.Namespace) -> None:
 
     raster = rasterize_code(code, num_modules=num_modules, module_size=module_size)
     if raster is None:
-        print("Failed to rasterize code")
+        print("Failed to sample code")
         return
 
     plt.figure(figsize=(12, 8))
