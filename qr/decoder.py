@@ -1,11 +1,24 @@
 import argparse
 from collections import Counter
 import itertools
+import pathlib
 
+import cv2 as cv
 from matplotlib import pylab as plt
 import numpy as np
 from numpy.typing import NDArray
 from qrcode import QRCode
+
+
+def read_qr(path: pathlib.Path) -> NDArray:
+    gray = cv.imread(str(path), cv.IMREAD_GRAYSCALE)
+    h, w = gray.shape
+
+    gray = cv.resize(gray, (min(h, w), min(h, w)))
+
+    cv.threshold(gray, 0, 255, cv.THRESH_OTSU, dst=gray)
+
+    return gray
 
 
 def gen_qr(module_size: int, version: int, text: str) -> NDArray:
@@ -168,8 +181,12 @@ def rasterize_code(code: NDArray) -> NDArray | None:
 
 
 def main(options: argparse.Namespace) -> None:
-    code = gen_qr(
-        module_size=options.module_size, version=options.version, text=options.text
+    code = (
+        gen_qr(
+            module_size=options.module_size, version=options.version, text=options.text
+        )
+        if options.file is None
+        else read_qr(options.file)
     )
 
     raster = rasterize_code(code)
@@ -194,6 +211,9 @@ def main(options: argparse.Namespace) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument(
+        "--file", type=pathlib.Path, help="External, cropped, QR code file"
     )
     parser.add_argument(
         "--module-size",
