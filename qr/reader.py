@@ -69,7 +69,7 @@ class Code:
         H = self.find_homography(rect_size)
 
         code = cv.cvtColor(rgb, cv.COLOR_RGB2GRAY)
-        code = cv.warpPerspective(code, H, dsize=(rect_size, rect_size))
+        code = cv.warpPerspective(code, H, dsize=(rect_size, rect_size), flags=cv.INTER_CUBIC)
         code = decoder.preprocess_code(code)
 
         raster = decoder.qr_matrix(code, invert=False)
