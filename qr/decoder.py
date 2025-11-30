@@ -44,7 +44,13 @@ def preprocess_code(code: NDArray) -> NDArray:
     """
     blur = cv.GaussianBlur(code, (5, 5), 0)
     cv.adaptiveThreshold(
-        blur, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, blockSize=21, C=2, dst=blur
+        blur,
+        255,
+        cv.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv.THRESH_BINARY,
+        blockSize=21,
+        C=2,
+        dst=blur,
     )
 
     kernel = np.ones((3, 3), np.uint8)
@@ -178,11 +184,11 @@ def qr_matrix(code: NDArray, invert: bool = True) -> NDArray | None:
     if h != w:
         print("Code is not square")
         return None
-    
+
     module_size = estimate_module_size(code)
     if module_size is None:
         return None
-    
+
     num_modules, _ = estimate_num_modules(code, module_size)
     module_size = w / num_modules
 
@@ -199,6 +205,7 @@ def qr_matrix(code: NDArray, invert: bool = True) -> NDArray | None:
             raster[y, x] = 1 - value if invert else value
 
     return raster
+
 
 def make_qr_masks(size: tuple[int, int]) -> NDArray:
     """
@@ -226,6 +233,60 @@ def make_qr_masks(size: tuple[int, int]) -> NDArray:
 
     return masks
 
+
+def read_qr_format(raster: NDArray) -> tuple[int, int]:
+    """
+    Read the 15 two bit QR format strings.
+
+    Parameters:
+        raster: The QR matrix.
+
+    Returns:
+        Tuple (primary, secondary) of format bit strings.
+    """
+    primary = 0
+    secondary = 0
+
+    primary |= int(raster[8, 0]) << 14
+    primary |= int(raster[8, 1]) << 13
+    primary |= int(raster[8, 2]) << 12
+    primary |= int(raster[8, 3]) << 11
+    primary |= int(raster[8, 4]) << 10
+    primary |= int(raster[8, 5]) << 9
+    primary |= int(raster[8, 7]) << 8
+    primary |= int(raster[8, 8]) << 7
+    primary |= int(raster[7, 8]) << 6
+    primary |= int(raster[5, 8]) << 5
+    primary |= int(raster[4, 8]) << 4
+    primary |= int(raster[3, 8]) << 3
+    primary |= int(raster[2, 8]) << 2
+    primary |= int(raster[1, 8]) << 1
+    primary |= int(raster[0, 8])
+
+    secondary |= int(raster[-1, 8]) << 14
+    secondary |= int(raster[-2, 8]) << 13
+    secondary |= int(raster[-3, 8]) << 12
+    secondary |= int(raster[-4, 8]) << 11
+    secondary |= int(raster[-5, 8]) << 10
+    secondary |= int(raster[-6, 8]) << 9
+    secondary |= int(raster[-7, 8]) << 8
+    secondary |= int(raster[8, -8]) << 7
+    secondary |= int(raster[8, -7]) << 6
+    secondary |= int(raster[8, -6]) << 5
+    secondary |= int(raster[8, -5]) << 4
+    secondary |= int(raster[8, -4]) << 3
+    secondary |= int(raster[8, -3]) << 2
+    secondary |= int(raster[8, -2]) << 1
+    secondary |= int(raster[8, -1])
+
+    return primary, secondary
+
+def hamming_distance(a: int, b: int) -> int:
+    """
+    Calculate the Hamming distance between two numbers.
+    """
+    return bin(a ^ b).count("1")
+
 def show_masks() -> None:
     masks = make_qr_masks((128, 128))
 
@@ -233,13 +294,14 @@ def show_masks() -> None:
 
     for i in range(8):
         mask = masks[:, :, i]
-        
+
         plt.subplot(2, 4, i + 1)
         plt.imshow(mask, cmap="gray")
         plt.title(f"mask={i}")
         plt.axis("off")
 
     plt.show()
+
 
 def main(options: argparse.Namespace) -> None:
     if options.show_masks:
@@ -254,10 +316,13 @@ def main(options: argparse.Namespace) -> None:
         else read_qr(options.file)
     )
 
-    raster = qr_matrix(code, invert=False)
+    raster = qr_matrix(code, invert=True)
     if raster is None:
         print("Failed to construct QR matrix")
         return
+
+    format = read_qr_format(raster)
+    print(f"primary={bin(format[0])}, secondary={bin(format[1])}, hamming={hamming_distance(format[0], format[1])}")
 
     plt.figure(figsize=(12, 8))
 
@@ -267,7 +332,7 @@ def main(options: argparse.Namespace) -> None:
     plt.axis("off")
 
     plt.subplot(1, 2, 2)
-    plt.imshow(raster, cmap="gray")
+    plt.imshow(1 - raster, cmap="gray")
     plt.title("QR matrix")
     plt.axis("off")
 
