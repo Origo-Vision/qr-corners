@@ -33,6 +33,15 @@ def gen_qr(module_size: int, version: int, text: str) -> NDArray:
 
 
 def preprocess_code(code: NDArray) -> NDArray:
+    """
+    Preprocess a QR code before analysis.
+
+    Parameters:
+        code: Grayscale image.
+
+    Returns:
+        The preprocessed image.
+    """
     blur = cv.GaussianBlur(code, (5, 5), 0)
     cv.adaptiveThreshold(
         blur, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, blockSize=21, C=2, dst=blur
@@ -191,8 +200,52 @@ def qr_matrix(code: NDArray, invert: bool = True) -> NDArray | None:
 
     return raster
 
+def make_qr_masks(size: tuple[int, int]) -> NDArray:
+    """
+    Create the eight different QR masks.
+
+    Parameters:
+        size: Tuple (h, w).
+
+    Returns:
+        Masks with shape (h, w, 8).
+    """
+    h, w = size
+
+    masks = np.zeros((h, w, 8), dtype=np.uint8)
+    for y in range(h):
+        for x in range(w):
+            masks[y, x, 0] = (y + x) % 2 == 0
+            masks[y, x, 1] = y % 2 == 0
+            masks[y, x, 2] = x % 3 == 0
+            masks[y, x, 3] = (y + x) % 3 == 0
+            masks[y, x, 4] = (y // 2 + x // 3) % 2 == 0
+            masks[y, x, 5] = (y * x) % 2 + (y * x) % 3 == 0
+            masks[y, x, 6] = ((y * x) % 2 + (y * x) % 3) % 2 == 0
+            masks[y, x, 7] = ((y + x) % 2 + (y * x) % 3) % 2 == 0
+
+    return masks
+
+def show_masks() -> None:
+    masks = make_qr_masks((128, 128))
+
+    plt.figure(figsize=(12, 8))
+
+    for i in range(8):
+        mask = masks[:, :, i]
+        
+        plt.subplot(2, 4, i + 1)
+        plt.imshow(mask, cmap="gray")
+        plt.title(f"mask={i}")
+        plt.axis("off")
+
+    plt.show()
 
 def main(options: argparse.Namespace) -> None:
+    if options.show_masks:
+        show_masks()
+        return
+
     code = (
         gen_qr(
             module_size=options.module_size, version=options.version, text=options.text
@@ -235,6 +288,7 @@ if __name__ == "__main__":
         default=4,
         help="Module size (px)",
     )
+    parser.add_argument("--show-masks", action="store_true", help="Show QR masks")
     parser.add_argument(
         "--version", type=int, choices=[1, 2, 3, 4, 5, 6], default=2, help="QR version"
     )
