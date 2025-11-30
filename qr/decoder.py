@@ -416,16 +416,24 @@ def main(options: argparse.Namespace) -> None:
     ecl, mask = qr_ecl_and_mask(raster)
     print(f"ECL={ecl}, mask={mask}")
 
+    masks = make_qr_masks(raster.shape)
+    unmasked = raster ^ masks[:, :, mask]
+
     plt.figure(figsize=(12, 8))
 
-    plt.subplot(1, 2, 1)
+    plt.subplot(1, 3, 1)
     plt.imshow(code, cmap="gray")
     plt.title("binarized code")
     plt.axis("off")
 
-    plt.subplot(1, 2, 2)
+    plt.subplot(1, 3, 2)
     plt.imshow(1 - raster, cmap="gray")
     plt.title("QR matrix")
+    plt.axis("off")
+
+    plt.subplot(1, 3, 3)
+    plt.imshow(1 - unmasked, cmap="gray")
+    plt.title("QR matrix - unmasked")
     plt.axis("off")
 
     plt.show()
