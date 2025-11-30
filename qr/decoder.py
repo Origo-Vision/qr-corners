@@ -10,6 +10,48 @@ import numpy as np
 from numpy.typing import NDArray
 from qrcode import QRCode
 
+"""
+Unmasked bit-string mapping to error level and masking.
+"""
+qr_format_table = {
+    # 01=L, <7%
+    0b111011111000100: (0b01, 0b000),
+    0b111001011110011: (0b01, 0b001),
+    0b111110110101010: (0b01, 0b010),
+    0b111100010011101: (0b01, 0b011),
+    0b110011000101111: (0b01, 0b100),
+    0b110001100011000: (0b01, 0b101),
+    0b110110001000001: (0b01, 0b110),
+    0b110100101110110: (0b01, 0b111),
+    # 00=M, <15%
+    0b101010000010010: (0b00, 0b000),
+    0b101000100100101: (0b00, 0b001),
+    0b101111001111100: (0b00, 0b010),
+    0b101101101001011: (0b00, 0b011),
+    0b100010111111001: (0b00, 0b100),
+    0b100000011001110: (0b00, 0b101),
+    0b100111110010111: (0b00, 0b110),
+    0b100101010100000: (0b00, 0b111),
+    # 11=Q, <25%
+    0b011010101011111: (0b11, 0b000),
+    0b011000001101000: (0b11, 0b001),
+    0b011111100110001: (0b11, 0b010),
+    0b011101000000110: (0b11, 0b011),
+    0b010010010110100: (0b11, 0b100),
+    0b010000110000011: (0b11, 0b101),
+    0b010111011011010: (0b11, 0b110),
+    0b010101111101101: (0b11, 0b111),
+    # 10=H, <30%
+    0b001011010001001: (0b10, 0b000),
+    0b001001110111110: (0b10, 0b001),
+    0b001110011100111: (0b10, 0b010),
+    0b001100111010000: (0b10, 0b011),
+    0b000011101100010: (0b10, 0b100),
+    0b000001001010101: (0b10, 0b101),
+    0b000110100001100: (0b10, 0b110),
+    0b000100000111011: (0b10, 0b111),
+}
+
 
 def read_qr(path: pathlib.Path) -> NDArray:
     gray = cv.imread(str(path), cv.IMREAD_GRAYSCALE)
@@ -281,11 +323,61 @@ def read_qr_format(raster: NDArray) -> tuple[int, int]:
 
     return primary, secondary
 
+
+def decode_qr_format(bits: int) -> tuple[int, int, int]:
+    """
+    Decode the QR format using the format table.
+
+    Parameters:
+        bits: 15-bit bitstring with format code.
+
+    Returns:
+        Tuple (ECL, mask-id, Hamming distance).
+    """
+    # unmasked = bits ^ 0x5412
+
+    selection = None
+    lowest_error = 100
+    for codeword, payload in qr_format_table.items():
+        error = hamming_distance(codeword, bits)
+        if error < lowest_error:
+            selection = payload
+            lowest_error = error
+
+    print(lowest_error)
+
+    return selection + (lowest_error,)
+
+
+def qr_ecl_and_mask(raster: NDArray) -> tuple[int, int]:
+    """
+    Get ECL and mask from the QR matrix.
+
+    Parameters:
+        raster: The QR matrix.
+
+    Returns:
+        Tuple (ECL, mask-id).
+    """
+    primary, secondary = read_qr_format(raster)
+
+    ecl1, mask1, err1 = decode_qr_format(primary)
+    if primary == secondary:
+        return ecl1, mask1
+
+    ecl2, mask2, err2 = decode_qr_format(secondary)
+    if err2 < err1:
+        return ecl2, mask2
+    else:
+        return ecl1, mask1
+
+
 def hamming_distance(a: int, b: int) -> int:
     """
     Calculate the Hamming distance between two numbers.
     """
     return bin(a ^ b).count("1")
+
 
 def show_masks() -> None:
     masks = make_qr_masks((128, 128))
@@ -321,8 +413,8 @@ def main(options: argparse.Namespace) -> None:
         print("Failed to construct QR matrix")
         return
 
-    format = read_qr_format(raster)
-    print(f"primary={bin(format[0])}, secondary={bin(format[1])}, hamming={hamming_distance(format[0], format[1])}")
+    ecl, mask = qr_ecl_and_mask(raster)
+    print(f"ECL={ecl}, mask={mask}")
 
     plt.figure(figsize=(12, 8))
 
