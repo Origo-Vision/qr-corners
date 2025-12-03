@@ -1,10 +1,15 @@
 import argparse
+from collections import namedtuple
 
 from matplotlib import pyplot as plt
 import numpy as np
 from numpy.typing import NDArray
 from qrcode import QRCode
 import reedsolo
+
+FormatIndices = namedtuple(
+    "FormatIndices", ["primary_xs", "primary_ys", "secondary_xs", "secondary_ys"]
+)
 
 # ECL 1 (L): 19, 7
 # ECL 0 (M): 16, 10
@@ -101,9 +106,24 @@ def hamming_distance(a: int, b: int) -> int:
     return bin(a ^ b).count("1")
 
 
-def read_format_bits(code: NDArray, ys: list[int], xs: list[int]) -> int:
-    assert len(ys) == 15
+def make_format_indices() -> FormatIndices:
+    primary_xs = [0, 1, 2, 3, 4, 5, 7, 8, 8, 8, 8, 8, 8, 8, 8]
+    primary_ys = [8, 8, 8, 8, 8, 8, 8, 8, 7, 5, 4, 3, 2, 1, 0]
+
+    secondary_xs = [8, 8, 8, 8, 8, 8, 8, -8, -7, -6, -5, -4, -3, -2, -1]
+    secondary_ys = [-1, -2, -3, -4, -5, -6, -7, 8, 8, 8, 8, 8, 8, 8, 8]
+
+    return FormatIndices(
+        np.array(primary_xs),
+        np.array(primary_ys),
+        np.array(secondary_xs),
+        np.array(secondary_ys),
+    )
+
+
+def read_format_bits(code: NDArray, xs: NDArray, ys: NDArray) -> int:
     assert len(xs) == 15
+    assert len(ys) == 15
     bits = code[ys, xs]
 
     value = 0
@@ -113,14 +133,9 @@ def read_format_bits(code: NDArray, ys: list[int], xs: list[int]) -> int:
     return value
 
 
-def read_format(code: NDArray) -> tuple[str, int] | None:
-    ys = [8, 8, 8, 8, 8, 8, 8, 8, 7, 5, 4, 3, 2, 1, 0]
-    xs = [0, 1, 2, 3, 4, 5, 7, 8, 8, 8, 8, 8, 8, 8, 8]
-    primary = read_format_bits(code, ys, xs)
-
-    ys = [-1, -2, -3, -4, -5, -6, -7, 8, 8, 8, 8, 8, 8, 8, 8]
-    xs = [8, 8, 8, 8, 8, 8, 8, -8, -7, -6, -5, -4, -3, -2, -1]
-    secondary = read_format_bits(code, ys, xs)
+def read_format(code: NDArray, indices: FormatIndices) -> tuple[str, int] | None:
+    primary = read_format_bits(code, indices.primary_xs, indices.primary_ys)
+    secondary = read_format_bits(code, indices.secondary_xs, indices.secondary_ys)
 
     if primary in qr_format_table:
         return qr_format_table[primary]
@@ -152,7 +167,8 @@ def main(options: argparse.Namespace) -> None:
     data_mask = data_module_mask()
     qr_mask = qr_pattern_mask()
 
-    result = read_format(code)
+    format_indices = make_format_indices()
+    result = read_format(code, format_indices)
     if result is None:
         print("Failed to read the format")
 
