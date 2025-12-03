@@ -161,7 +161,7 @@ def main(options: argparse.Namespace) -> None:
     flip_mask = qr_mask[:, :, mask_id]
 
     unmasked = code.copy()
-    toggle = data_mask & flip_mask > 0
+    toggle = (data_mask & flip_mask) > 0
     unmasked[toggle] ^= 1
 
     plt.figure(figsize=(12, 4))
@@ -178,22 +178,27 @@ def main(options: argparse.Namespace) -> None:
     plt.subplot(2, 4, 3)
     plt.imshow(data_mask, cmap="gray")
     plt.axis("off")
-    plt.title("Data mask")
+    plt.title("Data Mask")
 
     plt.subplot(2, 4, 4)
     plt.imshow(flip_mask, cmap="gray")
     plt.axis("off")
-    plt.title("Flip mask")
+    plt.title("Flip Mask")
 
     plt.subplot(2, 4, 5)
     plt.imshow(unmasked, cmap="gray")
     plt.axis("off")
-    plt.title("Unmasked QR")
+    plt.title("Mask Flipped QR")
 
     plt.subplot(2, 4, 6)
     plt.imshow(1 - unmasked, cmap="gray")
     plt.axis("off")
-    plt.title("Unmasked QR Viz")
+    plt.title("Mask Flipped QR Viz")
+
+    plt.subplot(2, 4, 7)
+    plt.imshow((1 - unmasked) & data_mask, cmap="gray")
+    plt.axis("off")
+    plt.title("Data Bits")
 
     plt.show()
 
