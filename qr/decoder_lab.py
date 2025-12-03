@@ -11,6 +11,8 @@ FormatIndices = namedtuple(
     "FormatIndices", ["primary_xs", "primary_ys", "secondary_xs", "secondary_ys"]
 )
 
+DataIndices = namedtuple("DataIndices", ["xs", "ys"])
+
 # ECL 1 (L): 19, 7
 # ECL 0 (M): 16, 10
 # ECL 3 (Q): 13, 13
@@ -159,6 +161,50 @@ def read_format(code: NDArray, indices: FormatIndices) -> tuple[str, int] | None
     return selection
 
 
+def make_data_indices(data_mask: NDArray) -> DataIndices:
+    assert data_mask.shape == (21, 21)
+
+    N, _ = data_mask.shape
+
+    xs = []
+    ys = []
+
+    col = N - 1
+    up = True
+    down_rows = range(0, N)
+    up_rows = range(N - 1, -1, -1)
+    while col > 0:
+        x0, x1 = col - 1, col
+
+        for y in up_rows if up else down_rows:
+            if data_mask[y, x1] > 0:
+                xs.append(x1)
+                ys.append(y)
+
+            if data_mask[y, x0] > 0:
+                xs.append(x0)
+                ys.append(y)
+
+        up = not up
+        col -= 2
+        if col == 6:
+            # Just skip the column with the vertical timing pattern.
+            col -= 1
+
+    return DataIndices(np.array(xs), np.array(ys))
+
+
+def render_data_read_order(indices: DataIndices) -> NDArray:
+    image = np.zeros((21, 21), dtype=np.uint8)
+
+    color = 1
+    for x, y in zip(indices.xs, indices.ys):
+        image[y, x] = color
+        color += 1
+
+    return image
+
+
 def main(options: argparse.Namespace) -> None:
     code = generate_code("www.wikipedia.org")
 
@@ -180,6 +226,9 @@ def main(options: argparse.Namespace) -> None:
     toggle = (data_mask & flip_mask) > 0
     unmasked[toggle] ^= 1
 
+    data_indices = make_data_indices(data_mask)
+    data_read_order = render_data_read_order(data_indices)
+
     plt.figure(figsize=(12, 4))
     plt.subplot(2, 4, 1)
     plt.imshow(code, cmap="gray")
@@ -199,7 +248,7 @@ def main(options: argparse.Namespace) -> None:
     plt.subplot(2, 4, 4)
     plt.imshow(flip_mask, cmap="gray")
     plt.axis("off")
-    plt.title("Flip Mask")
+    plt.title(f"Flip Mask ({mask_id})")
 
     plt.subplot(2, 4, 5)
     plt.imshow(unmasked, cmap="gray")
@@ -215,6 +264,11 @@ def main(options: argparse.Namespace) -> None:
     plt.imshow((1 - unmasked) & data_mask, cmap="gray")
     plt.axis("off")
     plt.title("Data Bits")
+
+    plt.subplot(2, 4, 8)
+    plt.imshow(data_read_order, cmap="hot")
+    plt.axis("off")
+    plt.title("Data Read Order")
 
     plt.show()
 
