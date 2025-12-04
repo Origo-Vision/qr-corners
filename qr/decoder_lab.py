@@ -194,6 +194,28 @@ def make_data_indices(data_mask: NDArray) -> DataIndices:
     return DataIndices(np.array(xs), np.array(ys))
 
 
+def read_data(unmasked: NDArray, indices: DataIndices) -> bytearray:
+    bits = unmasked[indices.ys, indices.xs]
+    assert len(bits) == 208, "Should be 208 bits => 26 bytes"
+
+    bytes = bytearray(26)
+    for i in range(26):
+        seq = bits[i * 8 : i * 8 + 8]
+        byte = (
+            (seq[0] << 7)
+            + (seq[1] << 6)
+            + (seq[2] << 5)
+            + (seq[3] << 4)
+            + (seq[4] << 3)
+            + (seq[5] << 2)
+            + (seq[6] << 1)
+            + seq[7]
+        )
+        bytes[i] = byte
+
+    return bytes
+
+
 def render_data_read_order(indices: DataIndices) -> NDArray:
     image = np.zeros((21, 21), dtype=np.uint8)
 
@@ -206,29 +228,42 @@ def render_data_read_order(indices: DataIndices) -> NDArray:
 
 
 def main(options: argparse.Namespace) -> None:
+    # Create the code
     code = generate_code("www.wikipedia.org")
 
     assert code.shape == (21, 21)
 
+    # Create the data mask for version 1 QR codes.
     data_mask = data_module_mask()
+
+    # Create a deck of flip mask for version 1 QR codes.
     qr_mask = qr_pattern_mask()
 
+    # Read the format (ECL and mask id) from pre-calculated indices.
     format_indices = make_format_indices()
     result = read_format(code, format_indices)
     if result is None:
         print("Failed to read the format")
 
+    # Extract the correct flip mask from the deck.
     ecl, mask_id = result
     print(f"ECL={ecl}, mask id={mask_id}")
     flip_mask = qr_mask[:, :, mask_id]
 
+    # Unmask the code by flipping bits where the flip mask is true.
     unmasked = code.copy()
     toggle = (data_mask & flip_mask) > 0
     unmasked[toggle] ^= 1
 
+    # Create data read indices for version 1 QR codes.
     data_indices = make_data_indices(data_mask)
     data_read_order = render_data_read_order(data_indices)
 
+    # Read the data from the pre-calculated indices.
+    bytes = read_data(unmasked, data_indices)
+    print(bytes)
+
+    # Visualization.
     plt.figure(figsize=(12, 4))
     plt.subplot(2, 4, 1)
     plt.imshow(code, cmap="gray")
@@ -238,7 +273,7 @@ def main(options: argparse.Namespace) -> None:
     plt.subplot(2, 4, 2)
     plt.imshow(1 - code, cmap="gray")
     plt.axis("off")
-    plt.title("QR Matrix Viz")
+    plt.title("QR Matrix (Inv)")
 
     plt.subplot(2, 4, 3)
     plt.imshow(data_mask, cmap="gray")
@@ -258,12 +293,12 @@ def main(options: argparse.Namespace) -> None:
     plt.subplot(2, 4, 6)
     plt.imshow(1 - unmasked, cmap="gray")
     plt.axis("off")
-    plt.title("Mask Flipped QR Viz")
+    plt.title("Mask Flipped QR (Inv)")
 
     plt.subplot(2, 4, 7)
     plt.imshow((1 - unmasked) & data_mask, cmap="gray")
     plt.axis("off")
-    plt.title("Data Bits")
+    plt.title("Data Bits (Inv)")
 
     plt.subplot(2, 4, 8)
     plt.imshow(data_read_order, cmap="hot")
