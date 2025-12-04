@@ -13,10 +13,14 @@ FormatIndices = namedtuple(
 
 DataIndices = namedtuple("DataIndices", ["xs", "ys"])
 
-# ECL 1 (L): 19, 7
-# ECL 0 (M): 16, 10
-# ECL 3 (Q): 13, 13
-# ECL 2 (H): 9, 17
+
+ecl_table = {
+    # Payload CW, EC CW. Note: effective payload is two bytes less.
+    "L": (19, 7),
+    "M": (16, 10),
+    "Q": (13, 13),
+    "H": (9, 17)
+}
 
 qr_format_table = {
     # 01=L, <7%
@@ -261,7 +265,18 @@ def main(options: argparse.Namespace) -> None:
 
     # Read the data from the pre-calculated indices.
     bytes = read_data(unmasked, data_indices)
-    print(bytes)
+    _, ec_cw = ecl_table[ecl]
+
+    # Setup the RS decoder.
+    rs = reedsolo.RSCodec(nsym=ec_cw)
+    
+    # Try to decode.
+    try:
+        decoded, _, _ = rs.decode(bytes)
+        print(decoded)
+        print(len(decoded))
+    except Exception as e:
+        print(f"Failed to RS decode the data. Error={e}")
 
     # Visualization.
     plt.figure(figsize=(12, 4))
