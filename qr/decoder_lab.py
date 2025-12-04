@@ -15,11 +15,11 @@ DataIndices = namedtuple("DataIndices", ["xs", "ys"])
 
 
 ecl_table = {
-    # Payload CW, EC CW. Note: effective payload is two bytes less.
-    "L": (19, 7),
-    "M": (16, 10),
-    "Q": (13, 13),
-    "H": (9, 17),
+    # Payload CW, EC CW, EC ID. Note: effective payload is two bytes less.
+    "L": (19, 7, 0b01),
+    "M": (16, 10, 0b00),
+    "Q": (13, 13, 0b11),
+    "H": (9, 17, 0b10),
 }
 
 qr_format_table = {
@@ -62,8 +62,13 @@ qr_format_table = {
 }
 
 
-def generate_code(text: str, error_correction: int = 1) -> NDArray:
-    qr = QRCode(version=1, box_size=1, border=0, error_correction=error_correction)
+def generate_code(text: str, error_correction: str) -> NDArray | None:
+    cw, _, ec_id = ecl_table[error_correction]
+    if len(text) > cw - 2:
+        print(f"Failed to generate version 1 code, text was too long. Max={cw - 2}")
+        return None
+
+    qr = QRCode(version=1, box_size=1, border=0, error_correction=ec_id)
     qr.add_data(text)
     qr.make(fit=True)
     image = qr.make_image(fill_color="black", back_color="white")
@@ -277,9 +282,9 @@ def parse_payload(decoded: bytearray) -> str | None:
 
 def main(options: argparse.Namespace) -> None:
     # Create the code
-    code = generate_code("www.wikipedia.org")
-
-    assert code.shape == (21, 21)
+    code = generate_code(options.text, options.ecl)
+    if code is None:
+        return
 
     # Create the data mask for version 1 QR codes.
     data_mask = data_module_mask()
@@ -297,6 +302,9 @@ def main(options: argparse.Namespace) -> None:
     ecl, mask_id = result
     flip_mask = qr_mask[:, :, mask_id]
 
+    if ecl != options.ecl:
+        print(f"The decoded ECL ({ecl}) is not equal to the configured ({options.ecl})")
+
     # Unmask the code by flipping bits where the flip mask is true.
     unmasked = code.copy()
     toggle = (data_mask & flip_mask) > 0
@@ -308,7 +316,7 @@ def main(options: argparse.Namespace) -> None:
 
     # Read the data from the pre-calculated indices.
     bytes = read_data(unmasked, data_indices)
-    _, ec_cw = ecl_table[ecl]
+    _, ec_cw, _ = ecl_table[ecl]
 
     # Setup the RS decoder.
     rs = reedsolo.RSCodec(nsym=ec_cw)
@@ -373,6 +381,16 @@ def main(options: argparse.Namespace) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument(
+        "--text", type=str, default="QR Codes are fun", help="Text to encode in QR"
+    )
+    parser.add_argument(
+        "--ecl",
+        type=str,
+        choices=("L", "M", "Q", "H"),
+        default="L",
+        help="ECL for the QR code. L=17 chr, M=14 chr, Q=11 chr and H=7 chr",
     )
     options = parser.parse_args()
     main(options)
