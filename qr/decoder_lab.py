@@ -19,7 +19,7 @@ ecl_table = {
     "L": (19, 7),
     "M": (16, 10),
     "Q": (13, 13),
-    "H": (9, 17)
+    "H": (9, 17),
 }
 
 qr_format_table = {
@@ -231,6 +231,50 @@ def render_data_read_order(indices: DataIndices) -> NDArray:
     return image
 
 
+def parse_payload(decoded: bytearray) -> str | None:
+    bits = []
+    for byte in decoded:
+        bits.append((byte >> 7) & 1)
+        bits.append((byte >> 6) & 1)
+        bits.append((byte >> 5) & 1)
+        bits.append((byte >> 4) & 1)
+        bits.append((byte >> 3) & 1)
+        bits.append((byte >> 2) & 1)
+        bits.append((byte >> 1) & 1)
+        bits.append(byte & 1)
+
+    current = 0
+
+    def take_next(num: int) -> int:
+        nonlocal bits
+        nonlocal current
+
+        chunk = bits[current : current + num]
+        byte = 0
+        for i in range(num):
+            byte = (byte << 1) + chunk[i]
+
+        current += num
+
+        return byte
+
+    mode = take_next(4)
+    if mode != 0b0100:
+        print(f"Only byte mode for payload parsning is supported. Got={bin(mode)}")
+        return None
+
+    size = take_next(8)
+    if size > 17:
+        print(f"Size exceeded the maximum of 17. Got={size}")
+        return None
+
+    payload = []
+    for byte in range(size):
+        payload.append(take_next(8))
+
+    return bytes(payload).decode("utf-8")
+
+
 def main(options: argparse.Namespace) -> None:
     # Create the code
     code = generate_code("www.wikipedia.org")
@@ -251,7 +295,6 @@ def main(options: argparse.Namespace) -> None:
 
     # Extract the correct flip mask from the deck.
     ecl, mask_id = result
-    print(f"ECL={ecl}, mask id={mask_id}")
     flip_mask = qr_mask[:, :, mask_id]
 
     # Unmask the code by flipping bits where the flip mask is true.
@@ -269,12 +312,16 @@ def main(options: argparse.Namespace) -> None:
 
     # Setup the RS decoder.
     rs = reedsolo.RSCodec(nsym=ec_cw)
-    
+
     # Try to decode.
     try:
         decoded, _, _ = rs.decode(bytes)
-        print(decoded)
-        print(len(decoded))
+        payload = parse_payload(decoded)
+        if not payload is None:
+            print(f"Read the payload='{payload}' from the code")
+        else:
+            print("Failed to parse the decoded data")
+
     except Exception as e:
         print(f"Failed to RS decode the data. Error={e}")
 
