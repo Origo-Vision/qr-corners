@@ -375,6 +375,15 @@ def main(options: argparse.Namespace) -> None:
     plt.axis("off")
     plt.title("Data Read Order")
 
+    if options.show_flip_masks:
+        plt.figure(figsize=(12, 8))
+
+        for mask_id in range(8):
+            plt.subplot(2, 4, mask_id + 1)
+            plt.imshow(qr_mask[:, :, mask_id], cmap="gray")
+            plt.axis("off")
+            plt.title(f"Flip Mask ({mask_id})")
+
     plt.show()
 
 
@@ -391,6 +400,9 @@ if __name__ == "__main__":
         choices=("L", "M", "Q", "H"),
         default="L",
         help="ECL for the QR code. L=17 chr, M=14 chr, Q=11 chr and H=7 chr",
+    )
+    parser.add_argument(
+        "--show-flip-masks", action="store_true", help="Show all flip masks"
     )
     options = parser.parse_args()
     main(options)
