@@ -6,6 +6,7 @@ import numpy as np
 from numpy.typing import NDArray
 from ppf.datamatrix import datamatrix
 
+
 def random_color() -> tuple[int, int, int]:
     r = int(np.random.uniform(10, 245))
     g = int(np.random.uniform(10, 245))
@@ -13,35 +14,17 @@ def random_color() -> tuple[int, int, int]:
 
     return r, g, b
 
-def read_data(symbol: NDArray) -> NDArray:
-    data = symbol[1:-1, 1:-1]
-    h, w = data.shape
-
-    # Setting up traversal visualization.
-    traversal = cv.cvtColor(1 - symbol, cv.COLOR_GRAY2RGB) * 255
-    traversal[1:-1, 1:-1, :] = 255
-
-    # Nominal bit offsets, relative to anchor, MSB first.
-    offsets = np.array(
-        [
-            [-2, -2],
-            [-2, -1],
-            [-1, -2],
-            [-1, -1],
-            [-1, 0],
-            [0, -2],
-            [0, -1],
-            [0, 0],
-        ]
-    )
-
-    def read_tile(y: int, x: int) -> int:
+def read_tile(
+        data: NDArray, offsets: NDArray, traversal: NDArray, y: int, x: int
+    ) -> int:
         color = random_color()
+
+        h, w = data.shape
 
         byte = 0
         for i in range(8):
             yy, xx = (y, x) + offsets[i]
-            
+
             if xx < 0:
                 xx += w
                 yy += 4 - ((w + 4) % 8)
@@ -54,7 +37,31 @@ def read_data(symbol: NDArray) -> NDArray:
 
             traversal[yy + 1, xx + 1] = color
 
+        traversal[y + 1, x + 1] = (255, 0, 0)
+
         return byte
+
+def read_data(symbol: NDArray) -> NDArray:
+    data = symbol[1:-1, 1:-1]
+    h, w = data.shape
+
+    # Setting up traversal visualization.
+    traversal = cv.cvtColor(1 - symbol, cv.COLOR_GRAY2RGB) * 255
+    traversal[1:-1, 1:-1, :] = 255
+
+    # Nominal bit offsets, relative to anchor, MSB first.
+    nominal = np.array(
+        [
+            [-2, -2],
+            [-2, -1],
+            [-1, -2],
+            [-1, -1],
+            [-1, 0],
+            [0, -2],
+            [0, -1],
+            [0, 0],
+        ]
+    )
 
     # Initial anchor read position.
     y = 4
@@ -63,8 +70,7 @@ def read_data(symbol: NDArray) -> NDArray:
     step = 2
 
     for i in range(3):
-        byte = read_tile(y, x)
-        traversal[y + 1, x + 1] = (255, 0, 0)
+        byte = read_tile(data, nominal, traversal, y, x)
 
         print(f"byte={byte}, ascii={chr(byte - 1)}, bin={bin(byte)}")
 
