@@ -112,8 +112,8 @@ def read_data(symbol: NDArray) -> NDArray:
         elif y == h + 1 and x == 1 and (w % 8) == 0 and (h % 8) == 6:
             print("Case D")
         else:
-            if y == 0 and x == w - 3 and (w % 4) != 0:
-                print("Case B")
+            if y == 0 and x == w - 2 and (w % 4) != 0:
+                print("Avoid corner 2")
                 y -= step
                 x += step
                 continue
@@ -137,6 +137,7 @@ def read_data(symbol: NDArray) -> NDArray:
                 byte = read_corner(data, corner_4, traversal)
                 print(f"byte={byte}, ascii={chr(byte - 1)}, bin={bin(byte)}")
             else:
+                print(y, x)
                 byte = read_tile(data, bit_offsets, traversal, y, x)
                 print(f"byte={byte}, ascii={chr(byte - 1)}, bin={bin(byte)}")
 
