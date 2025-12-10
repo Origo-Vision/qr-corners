@@ -87,13 +87,26 @@ def read_data(symbol: NDArray) -> NDArray:
         ]
     )
 
+    corner_4 = np.array(
+        [
+            [h - 3, 0],
+            [h - 2, 0],
+            [h - 1, 0],
+            [0, w - 2],
+            [0, w - 1],
+            [1, w - 1],
+            [2, w - 1],
+            [3, w - 1]
+        ]
+    )
+
     # Initial anchor read position.
     y = 4
     x = 0
 
     step = 2
 
-    for i in range(9):
+    for i in range(13):
         if y == h - 3 and x == -1:
             print("Case A")
         elif y == h + 1 and x == 1 and (w % 8) == 0 and (h % 8) == 6:
@@ -118,6 +131,10 @@ def read_data(symbol: NDArray) -> NDArray:
             if y == h - 2 and x == 0 and (w % 4) != 0:
                 print("Corner case 2")
                 byte = read_corner(data, corner_2, traversal)
+                print(f"byte={byte}, ascii={chr(byte - 1)}, bin={bin(byte)}")
+            elif  y == h - 1 and x == 0 and (w % 8) == 4:
+                print("Corner case 4")
+                byte = read_corner(data, corner_4, traversal)
                 print(f"byte={byte}, ascii={chr(byte - 1)}, bin={bin(byte)}")
             else:
                 byte = read_tile(data, bit_offsets, traversal, y, x)
