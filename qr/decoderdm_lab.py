@@ -14,30 +14,32 @@ def random_color() -> tuple[int, int, int]:
 
     return r, g, b
 
+
 def read_tile(
-        data: NDArray, offsets: NDArray, traversal: NDArray, y: int, x: int
-    ) -> int:
-        color = random_color()
+    data: NDArray, offsets: NDArray, traversal: NDArray, y: int, x: int
+) -> int:
+    color = random_color()
 
-        h, w = data.shape
+    h, w = data.shape
 
-        byte = 0
-        for i in range(8):
-            yy, xx = (y, x) + offsets[i]
+    byte = 0
+    for i in range(8):
+        yy, xx = (y, x) + offsets[i]
 
-            if xx < 0:
-                xx += w
-                yy += 4 - ((w + 4) % 8)
+        if xx < 0:
+            xx += w
+            yy += 4 - ((w + 4) % 8)
 
-            if yy < 0:
-                yy += h
-                xx += 4 - ((h + 4) % 8)
+        if yy < 0:
+            yy += h
+            xx += 4 - ((h + 4) % 8)
 
-            byte |= int(data[yy, xx] << (7 - i))
+        byte |= int(data[yy, xx] << (7 - i))
 
-            traversal[yy + 1, xx + 1] = color
+        traversal[yy + 1, xx + 1] = color
 
-        return byte
+    return byte
+
 
 def read_corner(data: NDArray, indices: NDArray, traversal) -> int:
     color = random_color()
@@ -50,6 +52,7 @@ def read_corner(data: NDArray, indices: NDArray, traversal) -> int:
         traversal[y + 1, x + 1] = color
 
     return byte
+
 
 def read_data(symbol: NDArray) -> NDArray:
     data = symbol[1:-1, 1:-1]
@@ -74,6 +77,19 @@ def read_data(symbol: NDArray) -> NDArray:
     )
 
     # Corner indices, MSB first.
+    corner_1 = np.array(
+        [
+            [h - 1, 0],
+            [h - 1, 1],
+            [h - 1, 2],
+            [0, w - 2],
+            [0, w - 1],
+            [1, w - 1],
+            [2, w - 1],
+            [3, w - 1],
+        ]
+    )
+
     corner_2 = np.array(
         [
             [h - 3, 0],
@@ -83,7 +99,20 @@ def read_data(symbol: NDArray) -> NDArray:
             [0, w - 3],
             [0, w - 2],
             [0, w - 1],
-            [1, w - 1]
+            [1, w - 1],
+        ]
+    )
+
+    corner_3 = np.array(
+        [
+            [h - 1, 0],
+            [h - 1, w - 1],
+            [0, w - 3],
+            [0, w - 2],
+            [0, w - 1],
+            [1, w - 3],
+            [1, w - 2],
+            [1, w - 1],
         ]
     )
 
@@ -96,7 +125,7 @@ def read_data(symbol: NDArray) -> NDArray:
             [0, w - 1],
             [1, w - 1],
             [2, w - 1],
-            [3, w - 1]
+            [3, w - 1],
         ]
     )
 
@@ -109,9 +138,15 @@ def read_data(symbol: NDArray) -> NDArray:
     bytes = []
     for i in range(25):
         if y == h - 3 and x == -1:
-            print("Case A")
+            print("Corner case 1")
+            byte = read_corner(data, corner_1, traversal)
+            print(f"byte={byte}, ascii={chr(byte - 1)}, bin={bin(byte)}")
+            bytes.append(byte)
         elif y == h + 1 and x == 1 and (w % 8) == 0 and (h % 8) == 6:
-            print("Case D")
+            print("Corner case 3")
+            byte = read_corner(data, corner_3, traversal)
+            print(f"byte={byte}, ascii={chr(byte - 1)}, bin={bin(byte)}")
+            bytes.append(byte)
         else:
             if y == 0 and x == w - 2 and (w % 4) != 0:
                 print("Avoid corner 2")
@@ -120,7 +155,7 @@ def read_data(symbol: NDArray) -> NDArray:
                 continue
 
             if y < 0 or y >= h or x < 0 or x >= w:
-                print("outside - turn around")
+                print("Outside data grid - turn around")
                 step = -step
                 y += 2 + step // 2
                 x += 2 - step // 2
@@ -134,7 +169,7 @@ def read_data(symbol: NDArray) -> NDArray:
                 byte = read_corner(data, corner_2, traversal)
                 print(f"byte={byte}, ascii={chr(byte - 1)}, bin={bin(byte)}")
                 bytes.append(byte)
-            elif  y == h - 1 and x == 0 and (w % 8) == 4:
+            elif y == h - 1 and x == 0 and (w % 8) == 4:
                 print("Corner case 4")
                 byte = read_corner(data, corner_4, traversal)
                 print(f"byte={byte}, ascii={chr(byte - 1)}, bin={bin(byte)}")
